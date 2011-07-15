@@ -47,6 +47,17 @@ MODULE_LICENSE("GPL");
 			printk(KERN_DEBUG "vbuf: " fmt, ## arg);	\
 	} while (0)
 
+#ifdef CONFIG_VIDEO_EMXX
+#define _POLL_DBG 0
+#define _QBUF_DBG 0
+
+#define dbg_printk(level, fmt, arg...) \
+	do { \
+		if (level > 0) \
+			printk(KERN_DEBUG " @vbq: " fmt, ## arg); \
+	} while (0)
+#endif
+
 /* --------------------------------------------------------------------- */
 
 #define CALL(q, f, arg...)						\
@@ -57,14 +68,21 @@ struct videobuf_buffer *videobuf_alloc(struct videobuf_queue *q)
 	struct videobuf_buffer *vb;
 
 	BUG_ON(q->msize < sizeof(*vb));
-
+#ifndef CONFIG_VIDEO_EMXX
 	if (!q->int_ops || !q->int_ops->alloc) {
 		printk(KERN_ERR "No specific ops defined!\n");
 		BUG();
 	}
 
 	vb = q->int_ops->alloc(q->msize);
+#else
+	vb = kzalloc(q->msize, GFP_KERNEL);
+#endif
+
 	if (NULL != vb) {
+#ifdef CONFIG_VIDEO_EMXX
+		init_waitqueue_head(&vb->clear_done);
+#endif /* CONFIG_VIDEO_EMXX */
 		init_waitqueue_head(&vb->done);
 		vb->magic = MAGIC_BUFFER;
 	}
@@ -73,8 +91,37 @@ struct videobuf_buffer *videobuf_alloc(struct videobuf_queue *q)
 }
 EXPORT_SYMBOL_GPL(videobuf_alloc);
 
+#ifdef CONFIG_VIDEO_EMXX
+#define WAITON_CONDITION ((vb->state != VIDEOBUF_ACTIVE &&          \
+			   vb->state != VIDEOBUF_QUEUED) &&         \
+			  (vb->state_queued == STATE_QUEUED_IDLE || \
+			   vb->state_queued == STATE_QUEUED_DONE))
+
+#define __emxx_wait_event_timeout(wq, condition, ret)			\
+do {									\
+	DEFINE_WAIT(__wait);						\
+									\
+	for (;;) {							\
+		prepare_to_wait(&wq, &__wait, TASK_UNINTERRUPTIBLE);	\
+		if (condition)						\
+			break;						\
+		schedule_timeout(ret);					\
+	}								\
+	finish_wait(&wq, &__wait);					\
+} while (0)
+
+#define emxx_wait_event_timeout(wq, condition, timeout)		\
+({									\
+	long __ret = timeout;						\
+	if (!(condition))						\
+		__emxx_wait_event_timeout(wq, condition, __ret);	\
+	__ret;								\
+})
+#else
 #define WAITON_CONDITION (vb->state != VIDEOBUF_ACTIVE &&\
 				vb->state != VIDEOBUF_QUEUED)
+#endif
+
 int videobuf_waiton(struct videobuf_buffer *vb, int non_blocking, int intr)
 {
 	MAGIC_CHECK(vb->magic, MAGIC_BUFFER);
@@ -87,13 +134,56 @@ int videobuf_waiton(struct videobuf_buffer *vb, int non_blocking, int intr)
 	}
 
 	if (intr)
+#ifdef CONFIG_VIDEO_EMXX
+		return wait_event_interruptible(vb->clear_done,
+						WAITON_CONDITION);
+#else
 		return wait_event_interruptible(vb->done, WAITON_CONDITION);
+#endif
 	else
+#ifdef CONFIG_VIDEO_EMXX
+		emxx_wait_event_timeout(vb->clear_done, WAITON_CONDITION,
+					 msecs_to_jiffies(10));
+#else
 		wait_event(vb->done, WAITON_CONDITION);
+#endif
 
 	return 0;
 }
 EXPORT_SYMBOL_GPL(videobuf_waiton);
+
+#ifdef CONFIG_VIDEO_EMXX
+int videobuf_waiton_dqbuf(struct videobuf_buffer *vb, int non_blocking,
+ int intr)
+{
+	int tout_ms = 10;
+	int tout_cnt = 0;
+	int retval = 0;
+	DECLARE_WAITQUEUE(wait, current);
+
+	MAGIC_CHECK(vb->magic, MAGIC_BUFFER);
+	add_wait_queue(&vb->done, &wait);
+	while (vb->state != VIDEOBUF_DQBUF_PERMIT) {
+		if (non_blocking || tout_cnt == 5) {
+			retval = -EAGAIN;
+			break;
+		}
+		set_current_state(intr  ? TASK_INTERRUPTIBLE
+					: TASK_UNINTERRUPTIBLE);
+		if (vb->state != VIDEOBUF_DQBUF_PERMIT)
+			schedule_timeout(msecs_to_jiffies(tout_ms));
+		set_current_state(TASK_RUNNING);
+		if (intr && signal_pending(current)) {
+			dprintk(1, "buffer waiton: -EINTR\n");
+			retval = -EINTR;
+			break;
+		}
+		tout_cnt++;
+	}
+	remove_wait_queue(&vb->done, &wait);
+	return retval;
+}
+#endif
 
 int videobuf_iolock(struct videobuf_queue *q, struct videobuf_buffer *vb,
 		    struct v4l2_framebuffer *fbuf)
@@ -210,11 +300,21 @@ void videobuf_queue_cancel(struct videobuf_queue *q)
 	for (i = 0; i < VIDEO_MAX_FRAME; i++) {
 		if (NULL == q->bufs[i])
 			continue;
+#ifdef CONFIG_VIDEO_EMXX
+		if (q->bufs[i]->state == VIDEOBUF_PREPARED ||
+		    q->bufs[i]->state == VIDEOBUF_QUEUED) {
+			if (q->ops->buf_cancel(q, q->bufs[i]))
+				q->bufs[i]->state = VIDEOBUF_CANCELED;
+			else
+				q->bufs[i]->state = VIDEOBUF_DQBUF_PERMIT;
+		}
+#else	/* CONFIG_VIDEO_EMXX */
 		if (q->bufs[i]->state == VIDEOBUF_QUEUED) {
 			list_del(&q->bufs[i]->queue);
 			q->bufs[i]->state = VIDEOBUF_ERROR;
 			wake_up_all(&q->bufs[i]->done);
 		}
+#endif	/* CONFIG_VIDEO_EMXX */
 	}
 	spin_unlock_irqrestore(q->irqlock, flags);
 
@@ -227,6 +327,39 @@ void videobuf_queue_cancel(struct videobuf_queue *q)
 	INIT_LIST_HEAD(&q->stream);
 }
 EXPORT_SYMBOL_GPL(videobuf_queue_cancel);
+
+#ifdef CONFIG_VIDEO_EMXX
+void
+videobuf_queue_clear(struct videobuf_queue *q)
+{
+	unsigned long flags;
+	struct list_head *list;
+	struct videobuf_buffer *vb;
+
+	/* remove queued buffers from list */
+	spin_lock_irqsave(q->irqlock, flags);
+
+	list_for_each(list, &q->stream) {
+		vb = list_entry(list, struct videobuf_buffer, stream);
+		if (vb->ts.tv_sec != -1 && vb->ts.tv_usec != -1) {
+			if (vb->state == VIDEOBUF_PREPARED ||
+			    vb->state == VIDEOBUF_QUEUED) {
+				if (q->ops->buf_cancel(q, vb))
+					vb->state = VIDEOBUF_CANCELED;
+				else
+					vb->state = VIDEOBUF_DQBUF_PERMIT;
+			}
+		}
+		dbg_printk(_QBUF_DBG,
+				"clear:  (%p) ->prev(%p) ->next(%p) "
+				"->state(%d) ->sequence(%d)\n",
+				&vb->stream, vb->stream.prev, vb->stream.next,
+				vb->state, vb->sequence);
+	}
+
+	spin_unlock_irqrestore(q->irqlock, flags);
+}
+#endif
 
 /* --------------------------------------------------------------------- */
 
@@ -257,7 +390,9 @@ static void videobuf_status(struct videobuf_queue *q, struct v4l2_buffer *b,
 	MAGIC_CHECK(vb->magic, MAGIC_BUFFER);
 	MAGIC_CHECK(q->int_ops->magic, MAGIC_QTYPE_OPS);
 
+#ifndef CONFIG_VIDEO_EMXX
 	b->index    = vb->i;
+#endif
 	b->type     = type;
 
 	b->memory   = vb->memory;
@@ -267,15 +402,37 @@ static void videobuf_status(struct videobuf_queue *q, struct v4l2_buffer *b,
 		b->length    = vb->bsize;
 		break;
 	case V4L2_MEMORY_USERPTR:
+#ifndef CONFIG_VIDEO_EMXX
 		b->m.userptr = vb->baddr;
 		b->length    = vb->bsize;
+#endif
 		break;
 	case V4L2_MEMORY_OVERLAY:
 		b->m.offset  = vb->boff;
 		break;
+#ifdef CONFIG_VIDEO_EMXX
+	case V4L2_MEMORY_PHYSADDR:
+		break;
+#endif
 	}
 
 	b->flags    = 0;
+#ifdef CONFIG_VIDEO_EMXX
+	switch (vb->state_frame) {
+	case STATE_FRAME_DONE:
+	case STATE_FRAME_IMMEDIATE:
+		b->flags |= V4L2_BUF_FLAG_DONE;
+		break;
+	case STATE_FRAME_CANCELED:
+		b->flags |= V4L2_BUF_FLAG_CANCELED;
+		break;
+	case STATE_FRAME_SKIPPED:
+		b->flags |= V4L2_BUF_FLAG_SKIPPED;
+		break;
+	default:
+		break;
+	}
+#else
 	if (vb->map)
 		b->flags |= V4L2_BUF_FLAG_MAPPED;
 
@@ -296,6 +453,7 @@ static void videobuf_status(struct videobuf_queue *q, struct v4l2_buffer *b,
 		/* nothing */
 		break;
 	}
+#endif /* CONFIG_VIDEO_EMXX */
 
 	if (vb->input != UNSET) {
 		b->flags |= V4L2_BUF_FLAG_INPUT;
@@ -305,7 +463,11 @@ static void videobuf_status(struct videobuf_queue *q, struct v4l2_buffer *b,
 	b->field     = vb->field;
 	b->timestamp = vb->ts;
 	b->bytesused = vb->size;
+#ifdef CONFIG_VIDEO_EMXX
+	b->sequence  = vb->sequence;
+#else
 	b->sequence  = vb->field_count >> 1;
+#endif
 }
 
 /* Locking: Caller holds q->vb_lock */
@@ -372,10 +534,19 @@ int __videobuf_mmap_setup(struct videobuf_queue *q,
 		case V4L2_MEMORY_MMAP:
 			q->bufs[i]->boff = PAGE_ALIGN(bsize) * i;
 			break;
+#ifndef CONFIG_VIDEO_EMXX
 		case V4L2_MEMORY_USERPTR:
+#endif
 		case V4L2_MEMORY_OVERLAY:
 			/* nothing */
 			break;
+#ifdef CONFIG_VIDEO_EMXX
+		case V4L2_MEMORY_USERPTR:
+		case V4L2_MEMORY_PHYSADDR:
+			if (q->bufs[i] == NULL)
+				return -EINVAL;
+			break;
+#endif
 		}
 	}
 
@@ -384,7 +555,11 @@ int __videobuf_mmap_setup(struct videobuf_queue *q,
 
 	dprintk(1, "mmap setup: %d buffers, %d bytes each\n", i, bsize);
 
+#ifndef CONFIG_VIDEO_EMXX
 	return i;
+#else	/* CONFIG_VIDEO_EMXX */
+	return 0;
+#endif	/* CONFIG_VIDEO_EMXX */
 }
 EXPORT_SYMBOL_GPL(__videobuf_mmap_setup);
 
@@ -413,6 +588,9 @@ int videobuf_reqbufs(struct videobuf_queue *q,
 
 	if (req->memory != V4L2_MEMORY_MMAP     &&
 	    req->memory != V4L2_MEMORY_USERPTR  &&
+#ifdef CONFIG_VIDEO_EMXX
+	    req->memory != V4L2_MEMORY_PHYSADDR &&
+#endif
 	    req->memory != V4L2_MEMORY_OVERLAY) {
 		dprintk(1, "reqbufs: memory type invalid\n");
 		return -EINVAL;
@@ -440,7 +618,13 @@ int videobuf_reqbufs(struct videobuf_queue *q,
 	if (count > VIDEO_MAX_FRAME)
 		count = VIDEO_MAX_FRAME;
 	size = 0;
+#ifdef CONFIG_VIDEO_EMXX
+	retval = q->ops->buf_setup(q, &count, &size);
+	if (retval < 0)
+		goto done;
+#else
 	q->ops->buf_setup(q, &count, &size);
+#endif
 	dprintk(1, "reqbufs: bufs=%d, size=0x%x [%u pages total]\n",
 		count, size,
 		(unsigned int)((count * PAGE_ALIGN(size)) >> PAGE_SHIFT));
@@ -452,6 +636,9 @@ int videobuf_reqbufs(struct videobuf_queue *q,
 	}
 
 	req->count = retval;
+#ifdef CONFIG_VIDEO_EMXX
+	q->index_max = count;
+#endif
 	retval = 0;
 
  done:
@@ -493,6 +680,9 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 	enum v4l2_field field;
 	unsigned long flags = 0;
 	int retval;
+#ifdef CONFIG_VIDEO_EMXX
+	int index;
+#endif
 
 	MAGIC_CHECK(q->int_ops->magic, MAGIC_QTYPE_OPS);
 
@@ -501,6 +691,21 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 
 	mutex_lock(&q->vb_lock);
 	retval = -EBUSY;
+
+#ifdef CONFIG_VIDEO_EMXX
+	for (index = 0; index < q->index_max; index++) {
+		buf = q->bufs[index];
+		if (NULL == buf)
+			continue;
+
+		if (buf->state == VIDEOBUF_NEEDS_INIT ||
+		    buf->state == VIDEOBUF_ERROR ||
+		    buf->state == VIDEOBUF_IDLE)
+			goto index_done;
+	}
+	goto done;
+ index_done:
+#endif
 	if (q->reading) {
 		dprintk(1, "qbuf: Reading running...\n");
 		goto done;
@@ -510,6 +715,7 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 		dprintk(1, "qbuf: Wrong type.\n");
 		goto done;
 	}
+#ifndef CONFIG_VIDEO_EMXX
 	if (b->index >= VIDEO_MAX_FRAME) {
 		dprintk(1, "qbuf: index out of range.\n");
 		goto done;
@@ -519,16 +725,18 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 		dprintk(1, "qbuf: buffer is null.\n");
 		goto done;
 	}
+#endif
 	MAGIC_CHECK(buf->magic, MAGIC_BUFFER);
 	if (buf->memory != b->memory) {
 		dprintk(1, "qbuf: memory type is wrong.\n");
 		goto done;
 	}
+#ifndef CONFIG_VIDEO_EMXX
 	if (buf->state != VIDEOBUF_NEEDS_INIT && buf->state != VIDEOBUF_IDLE) {
 		dprintk(1, "qbuf: buffer is already queued or active.\n");
 		goto done;
 	}
-
+#endif
 	if (b->flags & V4L2_BUF_FLAG_INPUT) {
 		if (b->input >= q->inputs) {
 			dprintk(1, "qbuf: wrong input.\n");
@@ -555,6 +763,7 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 		}
 		break;
 	case V4L2_MEMORY_USERPTR:
+#ifndef CONFIG_VIDEO_EMXX
 		if (b->length < buf->bsize) {
 			dprintk(1, "qbuf: buffer length is not enough\n");
 			goto done;
@@ -563,15 +772,43 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 		    buf->baddr != b->m.userptr)
 			q->ops->buf_release(q, buf);
 		buf->baddr = b->m.userptr;
+#endif
 		break;
 	case V4L2_MEMORY_OVERLAY:
 		buf->boff = b->m.offset;
 		break;
+#ifdef CONFIG_VIDEO_EMXX
+	case V4L2_MEMORY_PHYSADDR:
+		break;
+#endif
 	default:
 		dprintk(1, "qbuf: wrong memory type\n");
 		goto done;
 	}
 
+#ifdef CONFIG_VIDEO_EMXX
+	field             = b->field;
+	memcpy(&buf->base_addr, &b->m.phys_add, sizeof(struct v4l2_phys_add));
+	buf->ts           = b->timestamp;
+	buf->width        = b->width;
+	buf->height       = b->height;
+	buf->bytesperline = b->d_width;
+#ifdef CONFIG_VIDEO_EMXX_FILTER
+	memcpy(&buf->filter, &b->filter, sizeof(struct v4l2_filter_option));
+#endif
+
+	retval = q->ops->buf_prepare(q, buf, field);
+	if (0 > retval) {
+		dprintk(1, "qbuf: buffer_prepare returned %d\n", retval);
+		goto done;
+	}
+
+	b->sequence   = q->sequence;
+	b->index      = index;
+
+	if (buf->state_frame == STATE_FRAME_IMMEDIATE)
+		videobuf_queue_clear(q);
+#else
 	dprintk(1, "qbuf: requesting next field\n");
 	field = videobuf_next_field(q);
 	retval = q->ops->buf_prepare(q, buf, field);
@@ -579,8 +816,24 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 		dprintk(1, "qbuf: buffer_prepare returned %d\n", retval);
 		goto done;
 	}
+#endif
 
+#ifdef CONFIG_VIDEO_EMXX
+	spin_lock_irqsave(q->irqlock, flags);
+#endif
 	list_add_tail(&buf->stream, &q->stream);
+#ifdef CONFIG_VIDEO_EMXX
+	spin_unlock_irqrestore(q->irqlock, flags);
+#endif
+
+#ifdef CONFIG_VIDEO_EMXX
+	dbg_printk(_QBUF_DBG,
+			"qbuf:  (%p) ->prev(%p) ->next(%p) "
+			"->state(%d) ->sequence(%d)\n",
+			&buf->stream, buf->stream.prev, buf->stream.next,
+			buf->state, buf->sequence);
+#endif
+
 	if (q->streaming) {
 		spin_lock_irqsave(q->irqlock, flags);
 		q->ops->buf_queue(q, buf);
@@ -591,6 +844,24 @@ int videobuf_qbuf(struct videobuf_queue *q, struct v4l2_buffer *b)
 	wake_up_interruptible_sync(&q->wait);
 
 done:
+#if _QBUF_DBG
+	if (retval) {
+		int i;
+		for (i = 0; i < VIDEO_MAX_FRAME; i++) {
+			if (q->bufs[i]->state != STATE_NEEDS_INIT &&
+			    q->bufs[i]->state != STATE_IDLE) {
+				printk(KERN_INFO
+				 " @vbq: qbuf: %2d(%p) ->prev(%p) ->next(%p) "
+				 "->state(%d) ->sequence(%d)\n",
+				 i, &q->bufs[i]->stream,
+				 q->bufs[i]->stream.prev,
+				 q->bufs[i]->stream.next, q->bufs[i]->state,
+				 q->bufs[i]->sequence);
+			}
+		}
+		printk(KERN_INFO "\n");
+	}
+#endif
 	mutex_unlock(&q->vb_lock);
 
 	if (b->memory == V4L2_MEMORY_MMAP)
@@ -655,7 +926,11 @@ static int stream_next_buffer(struct videobuf_queue *q,
 		goto done;
 
 	buf = list_entry(q->stream.next, struct videobuf_buffer, stream);
+#ifdef CONFIG_VIDEO_EMXX
+	retval = videobuf_waiton_dqbuf(buf, nonblocking, 1);
+#else
 	retval = videobuf_waiton(buf, nonblocking, 1);
+#endif
 	if (retval < 0)
 		goto done;
 
@@ -669,6 +944,9 @@ int videobuf_dqbuf(struct videobuf_queue *q,
 {
 	struct videobuf_buffer *buf = NULL;
 	int retval;
+#ifdef CONFIG_VIDEO_EMXX
+	unsigned long flags = 0;
+#endif
 
 	MAGIC_CHECK(q->int_ops->magic, MAGIC_QTYPE_OPS);
 
@@ -684,21 +962,61 @@ int videobuf_dqbuf(struct videobuf_queue *q,
 	switch (buf->state) {
 	case VIDEOBUF_ERROR:
 		dprintk(1, "dqbuf: state is error\n");
+#ifdef CONFIG_VIDEO_EMXX
+		q->ops->buf_dqueue(q, buf);
+		buf->state = VIDEOBUF_IDLE;
+		break;
+	case VIDEOBUF_DQBUF_PERMIT:
+		dprintk(1, "dqbuf: state is dqbuf permit\n");
+		q->ops->buf_dqueue(q, buf);
+#else
 		break;
 	case VIDEOBUF_DONE:
 		dprintk(1, "dqbuf: state is done\n");
+#endif
 		break;
 	default:
 		dprintk(1, "dqbuf: state invalid\n");
 		retval = -EINVAL;
 		goto done;
 	}
+#ifdef CONFIG_VIDEO_EMXX
+	dbg_printk(_QBUF_DBG,
+			"dqbuf: (%p) ->prev(%p) ->next(%p) "
+			"->state(%d) ->sequence(%d)\n",
+			&buf->stream, buf->stream.prev, buf->stream.next,
+			buf->state, buf->sequence);
+
+	spin_lock_irqsave(q->irqlock, flags);
+#else
 	CALL(q, sync, q, buf);
+#endif
 	videobuf_status(q, b, buf, q->type);
 	list_del(&buf->stream);
 	buf->state = VIDEOBUF_IDLE;
 	b->flags &= ~V4L2_BUF_FLAG_DONE;
+#ifdef CONFIG_VIDEO_EMXX
+	spin_unlock_irqrestore(q->irqlock, flags);
+#endif
 done:
+#if _QBUF_DBG
+	if (retval) {
+		int i;
+		for (i = 0; i < VIDEO_MAX_FRAME; i++) {
+			if (q->bufs[i]->state != STATE_NEEDS_INIT &&
+			    q->bufs[i]->state != STATE_IDLE) {
+				printk(KERN_INFO
+				 " @vbq: dqbuf: %2d(%p) ->prev(%p) ->next(%p) "
+				 "->state(%d) ->sequence(%d)\n",
+				 i, &q->bufs[i]->stream,
+				 q->bufs[i]->stream.prev,
+				 q->bufs[i]->stream.next, q->bufs[i]->state,
+				 q->bufs[i]->sequence);
+			}
+		}
+		printk(KERN_INFO "\n");
+	}
+#endif
 	mutex_unlock(&q->vb_lock);
 	return retval;
 }
@@ -721,7 +1039,14 @@ int videobuf_streamon(struct videobuf_queue *q)
 	spin_lock_irqsave(q->irqlock, flags);
 	list_for_each_entry(buf, &q->stream, stream)
 		if (buf->state == VIDEOBUF_PREPARED)
+#ifdef CONFIG_VIDEO_EMXX
+			{
+				q->ops->buf_queue(q, buf);
+				break;
+			}
+#else
 			q->ops->buf_queue(q, buf);
+#endif
 	spin_unlock_irqrestore(q->irqlock, flags);
 
 	wake_up_interruptible_sync(&q->wait);
@@ -1101,6 +1426,7 @@ unsigned int videobuf_poll_stream(struct file *file,
 			buf = list_entry(q->stream.next,
 					 struct videobuf_buffer, stream);
 	} else {
+#ifndef CONFIG_VIDEO_EMXX
 		if (!q->reading)
 			__videobuf_read_start(q);
 		if (!q->reading) {
@@ -1113,7 +1439,29 @@ unsigned int videobuf_poll_stream(struct file *file,
 			q->read_off = 0;
 		}
 		buf = q->read_buf;
+#endif
 	}
+#ifdef CONFIG_VIDEO_EMXX
+	if (!buf) {
+		mutex_unlock(&q->vb_lock);
+		return rc;
+	}
+
+	if (0 == rc) {
+		if (buf->state == VIDEOBUF_DQBUF_PERMIT ||
+		    buf->state == VIDEOBUF_ERROR) {
+			rc = POLLIN|POLLRDNORM;
+			goto done;
+		}
+		dbg_printk(_POLL_DBG, "poll:  (%p) ->done(%p) ->state(%d)\n",
+			&buf->stream, &buf->done, buf->state);
+		poll_wait(file, &buf->done, wait);
+		if (buf->state == VIDEOBUF_DQBUF_PERMIT ||
+		    buf->state == VIDEOBUF_ERROR)
+			rc = POLLIN|POLLRDNORM;
+	}
+ done:
+#else
 	if (!buf)
 		rc = POLLERR;
 
@@ -1133,6 +1481,7 @@ unsigned int videobuf_poll_stream(struct file *file,
 			}
 		}
 	}
+#endif
 	mutex_unlock(&q->vb_lock);
 	return rc;
 }

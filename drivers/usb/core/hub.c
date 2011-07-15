@@ -2764,6 +2764,12 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 					USB_DT_DEVICE << 8, 0,
 					buf, GET_DESCRIPTOR_BUFSIZE,
 					initial_descriptor_timeout);
+
+#ifdef CONFIG_ARCH_EMXX
+				if (r == -ENOTCONN)
+					goto fail;
+#endif
+
 				switch (buf->bMaxPacketSize0) {
 				case 8: case 16: case 32: case 64: case 255:
 					if (buf->bDescriptorType ==
@@ -2813,6 +2819,10 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 				retval = hub_set_address(udev, devnum);
 				if (retval >= 0)
 					break;
+#ifdef CONFIG_ARCH_EMXX
+				if (retval == -ENOTCONN)
+					goto fail;
+#endif
 				msleep(200);
 			}
 			if (retval < 0) {
@@ -2843,6 +2853,10 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			dev_err(&udev->dev,
 					"device descriptor read/8, error %d\n",
 					retval);
+#ifdef CONFIG_ARCH_EMXX
+			if (retval == -ENOTCONN)
+				goto fail;
+#endif
 			if (retval >= 0)
 				retval = -EMSGSIZE;
 		} else {
@@ -2971,7 +2985,7 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	unsigned wHubCharacteristics =
 			le16_to_cpu(hub->descriptor->wHubCharacteristics);
 	struct usb_device *udev;
-	int status, i;
+	int status = 0, i;
 
 	dev_dbg (hub_dev,
 		"port %d, status %04x, change %04x, %s\n",
@@ -3198,11 +3212,18 @@ loop:
 		if ((status == -ENOTCONN) || (status == -ENOTSUPP))
 			break;
 	}
+#ifdef CONFIG_ARCH_EMXX
+	if (status != -ETIMEDOUT) {
+		if (hcd->driver->port_handed_over && !hub->hdev->parent)
+			(hcd->driver->port_handed_over)(hcd, port1);
+	}
+#else	/* !CONFIG_ARCH_EMXX */
 	if (hub->hdev->parent ||
 			!hcd->driver->port_handed_over ||
 			!(hcd->driver->port_handed_over)(hcd, port1))
 		dev_err(hub_dev, "unable to enumerate USB device on port %d\n",
 				port1);
+#endif	/* CONFIG_ARCH_EMXX */
  
 done:
 	hub_port_disable(hub, port1, 1);

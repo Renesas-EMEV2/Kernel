@@ -609,4 +609,8 @@ config TOUCHSCREEN_TPS6507X
 	  To compile this driver as a module, choose M here: the
 	  module will be called tps6507x_ts.
 
+config TOUCHSCREEN_DA9052
+	bool "DA9052 touch input driver"
+	depends on ARCH_EMXX && EMXX_PWC
+
 endif

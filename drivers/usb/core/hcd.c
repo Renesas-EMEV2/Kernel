@@ -2362,6 +2362,10 @@ void usb_remove_hcd(struct usb_hcd *hcd)
 
 	if (hcd->irq >= 0)
 		free_irq(hcd->irq, hcd);
+	if (hcd->self.root_hub) {
+		usb_put_dev(hcd->self.root_hub);
+		hcd->self.root_hub = NULL;
+	}
 	usb_deregister_bus(&hcd->self);
 	hcd_buffer_destroy(hcd);
 }
@@ -2376,6 +2380,136 @@ usb_hcd_platform_shutdown(struct platform_device* dev)
 		hcd->driver->shutdown(hcd);
 }
 EXPORT_SYMBOL_GPL(usb_hcd_platform_shutdown);
+
+#ifdef CONFIG_ARCH_EMXX
+/**
+ * usb_add_root_hub - finish generic HCD structure initialization and register
+ * @hcd: the usb_hcd structure to initialize
+ * @irqnum: Interrupt line to allocate
+ * @irqflags: Interrupt type flags
+ *
+ */
+int usb_add_root_hub(struct usb_hcd *hcd,
+		unsigned int irqnum, unsigned long irqflags)
+{
+	int retval;
+	struct usb_device *rhdev;
+
+	dev_info(hcd->self.controller, "%s\n", hcd->product_desc);
+
+	hcd->authorized_default = hcd->wireless? 0 : 1;
+	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+
+	if ((retval = usb_register_bus(&hcd->self)) < 0)
+		return retval;
+
+	if ((rhdev = usb_alloc_dev(NULL, &hcd->self, 0)) == NULL) {
+		dev_err(hcd->self.controller, "unable to allocate root hub\n");
+		retval = -ENOMEM;
+		goto err_allocate_root_hub;
+	}
+	rhdev->speed = (hcd->driver->flags & HCD_USB2) ? USB_SPEED_HIGH :
+			USB_SPEED_FULL;
+	hcd->self.root_hub = rhdev;
+
+	/* wakeup flag init defaults to "everything works" for root hubs,
+	 * but drivers can override it in reset() if needed, along with
+	 * recording the overall controller's system wakeup capability.
+	 */
+	device_init_wakeup(&rhdev->dev, 1);
+
+	/* "reset" is misnamed; its role is now one-time init. the controller
+	 * should already have been reset (and boot firmware kicked off etc).
+	 */
+	if (hcd->driver->reset && (retval = hcd->driver->reset(hcd)) < 0) {
+		dev_err(hcd->self.controller, "can't setup\n");
+		goto err_hcd_driver_setup;
+	}
+
+	/* NOTE: root hub and controller capabilities may not be the same */
+	if (device_can_wakeup(hcd->self.controller)
+			&& device_can_wakeup(&hcd->self.root_hub->dev))
+		dev_dbg(hcd->self.controller, "supports USB remote wakeup\n");
+
+	if ((retval = hcd->driver->start(hcd)) < 0) {
+		dev_err(hcd->self.controller, "startup error %d\n", retval);
+		goto err_hcd_driver_start;
+	}
+
+	/* starting here, usbcore will pay attention to this root hub */
+	rhdev->bus_mA = min(500u, hcd->power_budget);
+	if ((retval = register_root_hub(hcd)) != 0)
+		goto err_register_root_hub;
+
+	retval = sysfs_create_group(&rhdev->dev.kobj, &usb_bus_attr_group);
+	if (retval < 0) {
+		printk(KERN_ERR "Cannot register USB bus sysfs attributes: %d\n",
+		       retval);
+		goto error_create_attr_group;
+	}
+	if (hcd->uses_new_polling && hcd->poll_rh)
+		usb_hcd_poll_rh_status(hcd);
+	return retval;
+
+error_create_attr_group:
+	mutex_lock(&usb_bus_list_lock);
+	usb_disconnect(&hcd->self.root_hub);
+	mutex_unlock(&usb_bus_list_lock);
+err_register_root_hub:
+	hcd->driver->stop(hcd);
+err_hcd_driver_start:
+	if (hcd->irq >= 0)
+		free_irq(irqnum, hcd);
+err_hcd_driver_setup:
+	hcd->self.root_hub = NULL;
+	usb_put_dev(rhdev);
+err_allocate_root_hub:
+	usb_deregister_bus(&hcd->self);
+	return retval;
+}
+EXPORT_SYMBOL_GPL(usb_add_root_hub);
+
+/**
+ * usb_remove_root_hub - shutdown processing for generic HCDs
+ * @hcd: the usb_hcd structure to remove
+ * Context: !in_interrupt()
+ *
+ */
+void usb_remove_root_hub(struct usb_hcd *hcd)
+{
+	dev_info(hcd->self.controller, "remove, state %x\n", hcd->state);
+
+	if (HC_IS_RUNNING (hcd->state))
+		hcd->state = HC_STATE_QUIESCING;
+
+	dev_dbg(hcd->self.controller, "roothub graceful disconnect\n");
+	spin_lock_irq (&hcd_root_hub_lock);
+	hcd->rh_registered = 0;
+	spin_unlock_irq (&hcd_root_hub_lock);
+
+#ifdef CONFIG_USB_SUSPEND
+	cancel_work_sync(&hcd->wakeup_work);
+#endif
+
+	sysfs_remove_group(&hcd->self.root_hub->dev.kobj, &usb_bus_attr_group);
+	mutex_lock(&usb_bus_list_lock);
+	usb_disconnect(&hcd->self.root_hub);
+	mutex_unlock(&usb_bus_list_lock);
+
+	hcd->driver->stop(hcd);
+	hcd->state = HC_STATE_HALT;
+
+	hcd->poll_rh = 0;
+	del_timer_sync(&hcd->rh_timer);
+
+	if (hcd->self.root_hub) {
+		usb_put_dev(hcd->self.root_hub);
+		hcd->self.root_hub = NULL;
+	}
+	usb_deregister_bus(&hcd->self);
+}
+EXPORT_SYMBOL_GPL(usb_remove_root_hub);
+#endif	/* CONFIG_ARCH_EMXX */
 
 /*-------------------------------------------------------------------------*/
 

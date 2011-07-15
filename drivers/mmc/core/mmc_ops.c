@@ -34,10 +34,17 @@ static int _mmc_select_card(struct mmc_host *host, struct mmc_card *card)
 	if (card) {
 		cmd.arg = card->rca << 16;
 		cmd.flags = MMC_RSP_R1 | MMC_CMD_AC;
+#ifdef CONFIG_ARCH_EMXX
+		if (host->select == cmd.arg)
+			return 0; /* through */
+#endif
 	} else {
 		cmd.arg = 0;
 		cmd.flags = MMC_RSP_NONE | MMC_CMD_AC;
 	}
+#ifdef CONFIG_ARCH_EMXX
+	host->select = cmd.arg;
+#endif
 
 	err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
 	if (err)
@@ -61,9 +68,18 @@ int mmc_deselect_cards(struct mmc_host *host)
 int mmc_card_sleepawake(struct mmc_host *host, int sleep)
 {
 	struct mmc_command cmd;
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+	struct mmc_card *card;
+#else
 	struct mmc_card *card = host->card;
+#endif
 	int err;
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		card = host->card[i];
+#endif
 	if (sleep)
 		mmc_deselect_cards(host);
 
@@ -88,8 +104,16 @@ int mmc_card_sleepawake(struct mmc_host *host, int sleep)
 	if (!(host->caps & MMC_CAP_WAIT_WHILE_BUSY))
 		mmc_delay(DIV_ROUND_UP(card->ext_csd.sa_timeout, 10000));
 
+#ifdef CONFIG_ARCH_EMXX
+	if (!sleep) {
+		err = mmc_select_card(card);
+		return err;
+	}
+	}
+#else
 	if (!sleep)
 		err = mmc_select_card(card);
+#endif
 
 	return err;
 }
@@ -331,10 +355,17 @@ int mmc_send_cid(struct mmc_host *host, u32 *cid)
 	int ret, i;
 
 	if (!mmc_host_is_spi(host)) {
+#ifdef CONFIG_ARCH_EMXX
+		if (!host->card[0])
+			return -EINVAL;
+		return mmc_send_cxd_native(host, host->card[0]->rca << 16,
+				cid, MMC_SEND_CID);
+#else
 		if (!host->card)
 			return -EINVAL;
 		return mmc_send_cxd_native(host, host->card->rca << 16,
 				cid, MMC_SEND_CID);
+#endif
 	}
 
 	ret = mmc_send_cxd_data(NULL, host, MMC_SEND_CID, cid, 16);

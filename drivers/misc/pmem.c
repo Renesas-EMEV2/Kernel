@@ -438,7 +438,7 @@ static int pmem_allocate(int id, unsigned long len)
 	return best_fit;
 }
 
-static pgprot_t phys_mem_access_prot(struct file *file, pgprot_t vma_prot)
+static pgprot_t pmem_phys_mem_access_prot(struct file *file, pgprot_t vma_prot)
 {
 	int id = get_id(file);
 #ifdef pgprot_noncached
@@ -628,7 +628,7 @@ static int pmem_mmap(struct file *file, struct vm_area_struct *vma)
 	}
 
 	vma->vm_pgoff = pmem_start_addr(id, data) >> PAGE_SHIFT;
-	vma->vm_page_prot = phys_mem_access_prot(file, vma->vm_page_prot);
+	vma->vm_page_prot = pmem_phys_mem_access_prot(file, vma->vm_page_prot);
 
 	if (data->flags & PMEM_FLAGS_CONNECTED) {
 		struct pmem_region_node *region_node;
@@ -787,6 +787,8 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 	struct pmem_region_node *region_node;
 	struct list_head *elt;
 	void *flush_start, *flush_end;
+	unsigned long paddr;
+	unsigned long flush_start_l2, flush_end_l2;
 
 	if (!is_pmem_file(file) || !has_allocation(file)) {
 		return;
@@ -799,9 +801,11 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 
 	down_read(&data->sem);
 	vaddr = pmem_start_vaddr(id, data);
+	paddr = pmem_start_addr(id, data);
 	/* if this isn't a submmapped file, flush the whole thing */
 	if (unlikely(!(data->flags & PMEM_FLAGS_CONNECTED))) {
 		dmac_flush_range(vaddr, vaddr + pmem_len(id, data));
+		outer_flush_range(paddr, paddr + pmem_len(id, data));
 		goto end;
 	}
 	/* otherwise, flush the region of the file we are drawing */
@@ -813,6 +817,9 @@ void flush_pmem_file(struct file *file, unsigned long offset, unsigned long len)
 			flush_start = vaddr + region_node->region.offset;
 			flush_end = flush_start + region_node->region.len;
 			dmac_flush_range(flush_start, flush_end);
+			flush_start_l2 = paddr + region_node->region.offset;
+			flush_end_l2 = flush_start_l2 + region_node->region.len;
+			outer_flush_range(flush_start_l2, flush_end_l2);
 			break;
 		}
 	}

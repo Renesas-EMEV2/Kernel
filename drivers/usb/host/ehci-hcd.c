@@ -109,6 +109,13 @@ MODULE_PARM_DESC (ignore_oc, "ignore bogus hardware overcurrent indications");
 
 /*-------------------------------------------------------------------------*/
 
+#ifdef CONFIG_ARCH_EMXX
+extern void emxx_hc_fatal_recovery(struct usb_hcd *hcd);
+extern void emxx_hc_vbus_control(int);
+#endif	/* CONFIG_ARCH_EMXX */
+
+/*-------------------------------------------------------------------------*/
+
 static void
 timer_action(struct ehci_hcd *ehci, enum ehci_timer_action action)
 {
@@ -802,6 +809,9 @@ static irqreturn_t ehci_irq (struct usb_hcd *hcd)
 		dbg_cmd(ehci, "fatal", cmd);
 		dbg_status(ehci, "fatal", status);
 		ehci_halt(ehci);
+#ifdef CONFIG_ARCH_EMXX
+		emxx_hc_vbus_control(0);
+#endif	/* CONFIG_ARCH_EMXX */
 dead:
 		ehci_reset(ehci);
 		ehci_writel(ehci, 0, &ehci->regs->configured_flag);
@@ -816,6 +826,14 @@ dead:
 	spin_unlock (&ehci->lock);
 	if (pcd_status)
 		usb_hcd_poll_rh_status(hcd);
+
+#ifdef CONFIG_ARCH_EMXX
+	if (unlikely ((status & STS_FATAL) != 0)) {
+		disable_irq(INT_USB_OCI);
+		emxx_hc_fatal_recovery(hcd);
+	}
+#endif	/* CONFIG_ARCH_EMXX */
+
 	return IRQ_HANDLED;
 }
 
@@ -1156,6 +1174,11 @@ MODULE_LICENSE ("GPL");
 #ifdef CONFIG_ARCH_AT91
 #include "ehci-atmel.c"
 #define	PLATFORM_DRIVER		ehci_atmel_driver
+#endif
+
+#ifdef CONFIG_ARCH_EMXX
+#include "ehci-emxx.c"
+#define	PLATFORM_DRIVER		ehci_hcd_emxx_driver
 #endif
 
 #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \

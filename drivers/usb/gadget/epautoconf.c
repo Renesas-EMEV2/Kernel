@@ -161,8 +161,14 @@ ep_matches (
 	/* report address */
 	desc->bEndpointAddress &= USB_DIR_IN;
 	if (isdigit (ep->name [2])) {
-		u8	num = simple_strtoul (&ep->name [2], NULL, 10);
-		desc->bEndpointAddress |= num;
+		int	res;
+		unsigned long	num;
+		char	tempbuf[2];
+
+		tempbuf[0] = ep->name[2];
+		tempbuf[1] = '\0';
+		res = strict_strtoul(tempbuf, 16, &num);
+		desc->bEndpointAddress |= (u8)(num & 0xFF);
 #ifdef	MANY_ENDPOINTS
 	} else if (desc->bEndpointAddress & USB_DIR_IN) {
 		if (++in_epnum > 15)
@@ -283,6 +289,14 @@ struct usb_ep *usb_ep_autoconfig (
 		if (ep && ep_matches (gadget, ep, desc))
 			return ep;
 #endif
+	} else if (gadget_is_emxx(gadget)) {
+		list_for_each_entry(ep, &gadget->ep_list, ep_list) {
+			if (ep_matches(gadget, ep, desc)) {
+				ep->driver_data = gadget;
+				return ep;
+			}
+		}
+		return NULL;
 	}
 
 	/* Second, look at endpoints until an unclaimed one looks usable */

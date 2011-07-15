@@ -426,4 +426,8 @@ config KEYBOARD_W90P910
 	  To compile this driver as a module, choose M here: the
 	  module will be called w90p910_keypad.
 
+config KEYBOARD_EMXX_MAX7318
+	bool "EMMA Mobile series MAX7318 button support"
+	depends on ARCH_EMXX && INPUT_KEYBOARD && I2C
+
 endif

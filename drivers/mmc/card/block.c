@@ -238,6 +238,9 @@ static u32 get_card_status(struct mmc_card *card, struct request *req)
 	return cmd.resp[0];
 }
 
+#ifdef CONFIG_ARCH_EMXX
+#include "../core/mmc_ops.h"
+#endif
 static int
 mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card)
 {
@@ -249,6 +252,9 @@ mmc_blk_set_blksize(struct mmc_blk_data *md, struct mmc_card *card)
 		return 0;
 
 	mmc_claim_host(card->host);
+#ifdef CONFIG_ARCH_EMXX
+	mmc_select_card(card);
+#endif
 	cmd.opcode = MMC_SET_BLOCKLEN;
 	cmd.arg = 512;
 	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R1 | MMC_CMD_AC;
@@ -280,6 +286,9 @@ static int mmc_blk_issue_rq(struct mmc_queue *mq, struct request *req)
 #endif
 
 	mmc_claim_host(card->host);
+#ifdef CONFIG_ARCH_EMXX
+	mmc_select_card(card);
+#endif
 
 	do {
 		struct mmc_command cmd;

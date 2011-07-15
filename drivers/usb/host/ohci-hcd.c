@@ -1095,6 +1095,11 @@ MODULE_LICENSE ("GPL");
 #define TMIO_OHCI_DRIVER	ohci_hcd_tmio_driver
 #endif
 
+#ifdef CONFIG_ARCH_EMXX
+#include "ohci-emxx.c"
+#define EMXX_OHCI_DRIVER	ohci_hcd_emxx_driver
+#endif
+
 #if	!defined(PCI_DRIVER) &&		\
 	!defined(PLATFORM_DRIVER) &&	\
 	!defined(OMAP1_PLATFORM_DRIVER) &&	\
@@ -1104,7 +1109,8 @@ MODULE_LICENSE ("GPL");
 	!defined(PS3_SYSTEM_BUS_DRIVER) && \
 	!defined(SM501_OHCI_DRIVER) && \
 	!defined(TMIO_OHCI_DRIVER) && \
-	!defined(SSB_OHCI_DRIVER)
+	!defined(SSB_OHCI_DRIVER) && \
+	!defined(EMXX_OHCI_DRIVER)
 #error "missing bus glue for ohci-hcd"
 #endif
 
@@ -1188,9 +1194,19 @@ static int __init ohci_hcd_mod_init(void)
 		goto error_tmio;
 #endif
 
+#ifdef EMXX_OHCI_DRIVER
+	retval = platform_driver_register(&EMXX_OHCI_DRIVER);
+	if (retval < 0)
+		goto error_emxx;
+#endif
+
 	return retval;
 
 	/* Error path */
+#ifdef EMXX_OHCI_DRIVER
+	platform_driver_unregister(&EMXX_OHCI_DRIVER);
+ error_emxx:
+#endif
 #ifdef TMIO_OHCI_DRIVER
 	platform_driver_unregister(&TMIO_OHCI_DRIVER);
  error_tmio:
@@ -1244,6 +1260,9 @@ module_init(ohci_hcd_mod_init);
 
 static void __exit ohci_hcd_mod_exit(void)
 {
+#ifdef EMXX_OHCI_DRIVER
+	platform_driver_unregister(&EMXX_OHCI_DRIVER);
+#endif
 #ifdef TMIO_OHCI_DRIVER
 	platform_driver_unregister(&TMIO_OHCI_DRIVER);
 #endif

@@ -270,6 +270,11 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
+#ifdef CONFIG_ARCH_EMXX
+	/* initialize select state */
+	host->select = 0xffffffff;
+#endif
+
 	/*
 	 * Inform the card of the voltage
 	 */
@@ -397,7 +402,11 @@ static int mmc_sdio_init_card(struct mmc_host *host, u32 ocr,
 		goto remove;
 
 	if (!oldcard)
+#ifdef CONFIG_ARCH_EMXX
+		host->card[0] = card;
+#else
 		host->card = card;
+#endif
 	return 0;
 
 remove:
@@ -416,6 +425,19 @@ static void mmc_sdio_remove(struct mmc_host *host)
 	int i;
 
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+
+	for (i = 0;i < host->card[0]->sdio_funcs;i++) {
+		if (host->card[0]->sdio_func[i]) {
+			sdio_remove_func(host->card[0]->sdio_func[i]);
+			host->card[0]->sdio_func[i] = NULL;
+		}
+	}
+
+	mmc_remove_card(host->card[0]);
+	host->card[0] = NULL;
+#else
 	BUG_ON(!host->card);
 
 	for (i = 0;i < host->card->sdio_funcs;i++) {
@@ -427,6 +449,7 @@ static void mmc_sdio_remove(struct mmc_host *host)
 
 	mmc_remove_card(host->card);
 	host->card = NULL;
+#endif
 }
 
 /*
@@ -437,15 +460,22 @@ static void mmc_sdio_detect(struct mmc_host *host)
 	int err;
 
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+#else
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
 
 	/*
 	 * Just check if our card has been removed.
 	 */
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_select_card(host->card[0]);
+#else
 	err = mmc_select_card(host->card);
-
+#endif
 	mmc_release_host(host);
 
 	if (err) {
@@ -466,8 +496,13 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 {
 	int i, err = 0;
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card[0]->sdio_funcs; i++) {
+		struct sdio_func *func = host->card[0]->sdio_func[i];
+#else
 	for (i = 0; i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
+#endif
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			if (!pmops || !pmops->suspend || !pmops->resume) {
@@ -480,7 +515,11 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 		}
 	}
 	while (err && --i >= 0) {
+#ifdef CONFIG_ARCH_EMXX
+		struct sdio_func *func = host->card[0]->sdio_func[i];
+#else
 		struct sdio_func *func = host->card->sdio_func[i];
+#endif
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			pmops->resume(&func->dev);
@@ -489,7 +528,11 @@ static int mmc_sdio_suspend(struct mmc_host *host)
 
 	if (!err && host->pm_flags & MMC_PM_KEEP_POWER) {
 		mmc_claim_host(host);
+#ifdef CONFIG_ARCH_EMXX
+		sdio_disable_wide(host->card[0]);
+#else
 		sdio_disable_wide(host->card);
+#endif
 		mmc_release_host(host);
 	}
 
@@ -501,15 +544,26 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	int i, err;
 
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+#else
 	BUG_ON(!host->card);
-
+#endif
 	/* Basic card reinitialization. */
 	mmc_claim_host(host);
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_sdio_init_card(host, host->ocr, host->card[0],
+#else
 	err = mmc_sdio_init_card(host, host->ocr, host->card,
+#endif
 				 (host->pm_flags & MMC_PM_KEEP_POWER));
 	if (!err)
 		/* We may have switched to 1-bit mode during suspend. */
+#ifdef CONFIG_ARCH_EMXX
+		err = sdio_enable_wide(host->card[0]);
+#else
 		err = sdio_enable_wide(host->card);
+#endif
 	if (!err && host->sdio_irqs)
 		mmc_signal_sdio_irq(host);
 	mmc_release_host(host);
@@ -524,8 +578,13 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	 * same as before suspending (same MAC address for network cards,
 	 * etc.) and return an error otherwise.
 	 */
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; !err && i < host->card[0]->sdio_funcs; i++) {
+		struct sdio_func *func = host->card[0]->sdio_func[i];
+#else
 	for (i = 0; !err && i < host->card->sdio_funcs; i++) {
 		struct sdio_func *func = host->card->sdio_func[i];
+#endif
 		if (func && sdio_func_present(func) && func->dev.driver) {
 			const struct dev_pm_ops *pmops = func->dev.driver->pm;
 			err = pmops->resume(&func->dev);
@@ -554,6 +613,9 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(host->card_num > 1);
+#endif
 
 	mmc_attach_bus(host, &mmc_sdio_ops);
 
@@ -584,7 +646,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 	err = mmc_sdio_init_card(host, host->ocr, NULL, 0);
 	if (err)
 		goto err;
+#ifdef CONFIG_ARCH_EMXX
+	card = host->card[0];
+#else
 	card = host->card;
+#endif
 
 	/*
 	 * The number of functions on the card is encoded inside
@@ -613,7 +679,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 		if (host->embedded_sdio_data.funcs) {
 			struct sdio_func *tmp;
 
+#ifdef CONFIG_ARCH_EMXX
+			tmp = sdio_alloc_func(host->card[0]);
+#else
 			tmp = sdio_alloc_func(host->card);
+#endif
 			if (IS_ERR(tmp))
 				goto remove;
 			tmp->num = (i + 1);
@@ -624,7 +694,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 			tmp->device = card->cis.device;
 		} else {
 #endif
+#ifdef CONFIG_ARCH_EMXX
+			err = sdio_init_func(host->card[0], i + 1);
+#else
 			err = sdio_init_func(host->card, i + 1);
+#endif
 			if (err)
 				goto remove;
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
@@ -637,7 +711,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 	/*
 	 * First add the card to the driver model...
 	 */
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_add_card(host->card[0]);
+#else
 	err = mmc_add_card(host->card);
+#endif
 	if (err)
 		goto remove_added;
 
@@ -645,7 +723,11 @@ int mmc_attach_sdio(struct mmc_host *host, u32 ocr)
 	 * ...then the SDIO functions.
 	 */
 	for (i = 0;i < funcs;i++) {
+#ifdef CONFIG_ARCH_EMXX
+		err = sdio_add_func(host->card[0]->sdio_func[i]);
+#else
 		err = sdio_add_func(host->card->sdio_func[i]);
+#endif
 		if (err)
 			goto remove_added;
 	}
@@ -659,7 +741,11 @@ remove_added:
 	mmc_claim_host(host);
 remove:
 	/* And with lock if it hasn't been added. */
+#ifdef CONFIG_ARCH_EMXX
+	if (host->card[0])
+#else
 	if (host->card)
+#endif
 		mmc_sdio_remove(host);
 err:
 	mmc_detach_bus(host);

@@ -15,6 +15,7 @@
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
+#include <linux/wakelock.h>
 
 struct mmc_ios {
 	unsigned int	clock;			/* clock rate */
@@ -190,13 +191,21 @@ struct mmc_host {
 	unsigned int		disable_delay;	/* disable delay in msecs */
 	struct delayed_work	disable;	/* disabling work */
 
+#ifdef CONFIG_ARCH_EMXX
+#define MMC_CARD_MAX_NUM	4
+	struct mmc_card		*card[MMC_CARD_MAX_NUM];	/* device attached to this host */
+	unsigned char 		card_num;	/* card num */
+	unsigned int 		select;		/* select card status */
+#else
 	struct mmc_card		*card;		/* device attached to this host */
+#endif
 
 	wait_queue_head_t	wq;
 	struct task_struct	*claimer;	/* task that has host claimed */
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
+	struct wake_lock mmc_delayed_work_wake_lock;
 
 	const struct mmc_bus_ops *bus_ops;	/* current bus driver */
 	unsigned int		bus_refs;	/* reference counter */

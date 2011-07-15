@@ -39,7 +39,6 @@
 #include "sdio_ops.h"
 
 static struct workqueue_struct *workqueue;
-static struct wake_lock mmc_delayed_work_wake_lock;
 
 /*
  * Enabling software CRCs on the data blocks can be a significant (30%)
@@ -71,7 +70,6 @@ MODULE_PARM_DESC(
 static int mmc_schedule_delayed_work(struct delayed_work *work,
 				     unsigned long delay)
 {
-	wake_lock(&mmc_delayed_work_wake_lock);
 	return queue_delayed_work(workqueue, work, delay);
 }
 
@@ -421,6 +419,7 @@ static int mmc_host_do_disable(struct mmc_host *host, int lazy)
 		if (err > 0) {
 			unsigned long delay = msecs_to_jiffies(err);
 
+			wake_lock(&host->mmc_delayed_work_wake_lock);
 			mmc_schedule_delayed_work(&host->disable, delay);
 		}
 	}
@@ -553,7 +552,7 @@ void mmc_host_deeper_disable(struct work_struct *work)
 	mmc_do_release_host(host);
 
 out:
-	wake_unlock(&mmc_delayed_work_wake_lock);
+	wake_unlock(&host->mmc_delayed_work_wake_lock);
 }
 
 /**
@@ -579,6 +578,7 @@ int mmc_host_lazy_disable(struct mmc_host *host)
 		return 0;
 
 	if (host->disable_delay) {
+		wake_lock(&host->mmc_delayed_work_wake_lock);
 		mmc_schedule_delayed_work(&host->disable,
 				msecs_to_jiffies(host->disable_delay));
 		return 0;
@@ -1076,6 +1076,7 @@ void mmc_detect_change(struct mmc_host *host, unsigned long delay)
 	spin_unlock_irqrestore(&host->lock, flags);
 #endif
 
+	wake_lock(&host->mmc_delayed_work_wake_lock);
 	mmc_schedule_delayed_work(&host->detect, delay);
 }
 
@@ -1181,9 +1182,9 @@ void mmc_rescan(struct work_struct *work)
 
 out:
 	if (extend_wakelock)
-		wake_lock_timeout(&mmc_delayed_work_wake_lock, HZ / 2);
+		wake_lock_timeout(&host->mmc_delayed_work_wake_lock, HZ / 2);
 	else
-		wake_unlock(&mmc_delayed_work_wake_lock);
+		wake_unlock(&host->mmc_delayed_work_wake_lock);
 
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
@@ -1191,12 +1192,18 @@ out:
 
 void mmc_start_host(struct mmc_host *host)
 {
+	wake_lock_init(&host->mmc_delayed_work_wake_lock,
+		WAKE_LOCK_SUSPEND, mmc_hostname(host));
+
 	mmc_power_off(host);
 	mmc_detect_change(host, 0);
 }
 
 void mmc_stop_host(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+#endif
 #ifdef CONFIG_MMC_DEBUG
 	unsigned long flags;
 	spin_lock_irqsave(&host->lock, flags);
@@ -1225,9 +1232,15 @@ void mmc_stop_host(struct mmc_host *host)
 	}
 	mmc_bus_put(host);
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++)
+		BUG_ON(host->card[i]);
+#else
 	BUG_ON(host->card);
+#endif
 
 	mmc_power_off(host);
+	wake_lock_destroy(&host->mmc_delayed_work_wake_lock);
 }
 
 void mmc_power_save_host(struct mmc_host *host)
@@ -1296,7 +1309,11 @@ EXPORT_SYMBOL(mmc_card_sleep);
 
 int mmc_card_can_sleep(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	struct mmc_card *card = host->card[0];
+#else
 	struct mmc_card *card = host->card;
+#endif
 
 	if (card && mmc_card_mmc(card) && card->ext_csd.rev >= 3)
 		return 1;
@@ -1354,8 +1371,10 @@ int mmc_resume_host(struct mmc_host *host)
 
 	if (host->bus_ops && !host->bus_dead) {
 		if (!(host->pm_flags & MMC_PM_KEEP_POWER)) {
+			mmc_claim_host(host);
 			mmc_power_up(host);
 			mmc_select_voltage(host, host->ocr);
+			mmc_release_host(host);
 		}
 		BUG_ON(!host->bus_ops->resume);
 		err = host->bus_ops->resume(host);
@@ -1448,8 +1467,6 @@ static int __init mmc_init(void)
 {
 	int ret;
 
-	wake_lock_init(&mmc_delayed_work_wake_lock, WAKE_LOCK_SUSPEND, "mmc_delayed_work");
-
 	workqueue = create_singlethread_workqueue("kmmcd");
 	if (!workqueue)
 		return -ENOMEM;
@@ -1484,7 +1501,6 @@ static void __exit mmc_exit(void)
 	mmc_unregister_host_class();
 	mmc_unregister_bus();
 	destroy_workqueue(workqueue);
-	wake_lock_destroy(&mmc_delayed_work_wake_lock);
 }
 
 subsys_initcall(mmc_init);

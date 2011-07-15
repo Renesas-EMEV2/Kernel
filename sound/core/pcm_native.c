@@ -1402,7 +1402,9 @@ static struct action_ops snd_pcm_action_drain_init = {
 	.post_action = snd_pcm_post_drain_init
 };
 
+#ifndef CONFIG_ARCH_EMXX
 static int snd_pcm_drop(struct snd_pcm_substream *substream);
+#endif
 
 /*
  * Drain the stream(s).
@@ -1411,8 +1413,13 @@ static int snd_pcm_drop(struct snd_pcm_substream *substream);
  * After this call, all streams are supposed to be either SETUP or DRAINING
  * (capture only) state.
  */
+#ifdef CONFIG_ARCH_EMXX
+int snd_pcm_drain(struct snd_pcm_substream *substream,
+			 struct file *file)
+#else
 static int snd_pcm_drain(struct snd_pcm_substream *substream,
 			 struct file *file)
+#endif
 {
 	struct snd_card *card;
 	struct snd_pcm_runtime *runtime;
@@ -1514,7 +1521,11 @@ static int snd_pcm_drain(struct snd_pcm_substream *substream,
  *
  * Immediately put all linked substreams into SETUP state.
  */
+#ifdef CONFIG_ARCH_EMXX
+int snd_pcm_drop(struct snd_pcm_substream *substream)
+#else
 static int snd_pcm_drop(struct snd_pcm_substream *substream)
+#endif
 {
 	struct snd_pcm_runtime *runtime;
 	struct snd_card *card;

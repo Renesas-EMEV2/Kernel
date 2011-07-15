@@ -11,6 +11,28 @@ menuconfig SND_ARM
 
 if SND_ARM
 
+config SND_EMXX
+	tristate "EMMA Mobile PCM driver"
+	depends on ARCH_EMXX && SND
+
+config SND_EMXX_MIXER
+	tristate "EMMA Mobile series audio driver"
+	depends on ARCH_EMXX && SND
+	select SND_EMXX
+	select SND_PCM
+	select SND_HWDEP
+	help
+	  Say Y here if you have a audio on EMMA Mobile chip.
+
+config SND_EMXX_SPDIF
+	tristate "EMMA Mobile spdif audio driver"
+	depends on MACH_EMEV && SND
+	select SND_EMXX
+	select SND_PCM
+	select SND_HWDEP
+	help
+	  Say Y here if you have a spdif audio on EMMA Mobile chip.
+
 config SND_ARMAACI
 	tristate "ARM PrimeCell PL041 AC Link support"
 	depends on ARM_AMBA

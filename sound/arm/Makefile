@@ -2,6 +2,15 @@
 # Makefile for ALSA
 #
 
+obj-$(CONFIG_SND_EMXX)		+= snd-emxx.o
+snd-emxx-objs			:= emxx-pcm.o
+
+obj-$(CONFIG_SND_EMXX_MIXER)	+= snd-emxx-mixer.o
+snd-emxx-mixer-objs		:= emxx-mixer.o
+
+obj-$(CONFIG_SND_EMXX_SPDIF)	+= snd-emxx-spdif.o
+snd-emxx-spdif-objs		:= emxx-cs8427.o
+
 obj-$(CONFIG_SND_ARMAACI)	+= snd-aaci.o
 snd-aaci-objs			:= aaci.o
 

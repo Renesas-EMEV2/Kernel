@@ -43,6 +43,10 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 
+#ifdef CONFIG_ARCH_EMXX
+#include <mach/pm.h>
+#endif
+
 #include "8250.h"
 
 #ifdef CONFIG_SPARC
@@ -129,6 +133,10 @@ static const struct old_serial_port old_serial_port[] = {
 static unsigned long probe_rsa[PORT_RSA_MAX];
 static unsigned int probe_rsa_count;
 #endif /* CONFIG_SERIAL_8250_RSA  */
+
+#ifdef CONFIG_ARCH_EMXX
+static int serial8250_start_tx_sus_count[UART_NR];
+#endif
 
 struct uart_8250_port {
 	struct uart_port	port;
@@ -412,14 +420,32 @@ static void mem_serial_out(struct uart_port *p, int offset, int value)
 
 static void mem32_serial_out(struct uart_port *p, int offset, int value)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int save_offset = offset;
+	offset = map_8250_out_reg(p, offset) << p->regshift;
+	if (save_offset == UART_TX)
+		writeb(value, p->membase + offset);
+	else
+		writel(value, p->membase + offset);
+#else
 	offset = map_8250_out_reg(p, offset) << p->regshift;
 	writel(value, p->membase + offset);
+#endif
 }
 
 static unsigned int mem32_serial_in(struct uart_port *p, int offset)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int save_offset = offset;
+	offset = map_8250_in_reg(p, offset) << p->regshift;
+	if (save_offset == UART_RX)
+		return readb(p->membase + offset);
+	else
+		return readl(p->membase + offset);
+#else
 	offset = map_8250_in_reg(p, offset) << p->regshift;
 	return readl(p->membase + offset);
+#endif
 }
 
 #ifdef CONFIG_SERIAL_8250_AU1X00
@@ -528,6 +554,7 @@ static void set_io_from_upio(struct uart_port *p)
 	up->cur_iotype = p->iotype;
 }
 
+#ifndef CONFIG_ARCH_EMXX
 static void
 serial_out_sync(struct uart_8250_port *up, int offset, int value)
 {
@@ -546,6 +573,7 @@ serial_out_sync(struct uart_8250_port *up, int offset, int value)
 		p->serial_out(p, offset, value);
 	}
 }
+#endif
 
 #define serial_in(up, offset)		\
 	(up->port.serial_in(&(up)->port, (offset)))
@@ -1035,7 +1063,11 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 
 	DEBUG_AUTOCONF("iir1=%d iir2=%d ", status1, status2);
 
+#ifdef CONFIG_ARCH_EMXX
+	if (status1 == 7 && status2 == 7) {
+#else
 	if (status1 == 6 && status2 == 7) {
+#endif
 		up->port.type = PORT_16750;
 		up->capabilities |= UART_CAP_AFE | UART_CAP_SLEEP;
 		return;
@@ -1734,6 +1766,7 @@ static void serial8250_timeout(unsigned long data)
 	mod_timer(&up->timer, jiffies + poll_timeout(up->port.timeout));
 }
 
+#ifndef CONFIG_ARCH_EMXX
 static void serial8250_backup_timeout(unsigned long data)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)data;
@@ -1778,6 +1811,7 @@ static void serial8250_backup_timeout(unsigned long data)
 	mod_timer(&up->timer,
 		jiffies + poll_timeout(up->port.timeout) + HZ / 5);
 }
+#endif
 
 static unsigned int serial8250_tx_empty(struct uart_port *port)
 {
@@ -1938,7 +1972,9 @@ static int serial8250_startup(struct uart_port *port)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
 	unsigned long flags;
+#ifndef CONFIG_ARCH_EMXX
 	unsigned char lsr, iir;
+#endif
 	int retval;
 
 	up->capabilities = uart_config[up->port.type].flags;
@@ -2011,6 +2047,7 @@ static int serial8250_startup(struct uart_port *port)
 		serial_outp(up, UART_LCR, 0);
 	}
 
+#ifndef CONFIG_ARCH_EMXX
 	if (is_real_interrupt(up->port.irq)) {
 		unsigned char iir1;
 		/*
@@ -2060,6 +2097,7 @@ static int serial8250_startup(struct uart_port *port)
 		mod_timer(&up->timer, jiffies +
 			  poll_timeout(up->port.timeout) + HZ / 5);
 	}
+#endif
 
 	/*
 	 * If the "interrupt" for this port doesn't correspond with any
@@ -2107,6 +2145,7 @@ static int serial8250_startup(struct uart_port *port)
 	if (skip_txen_test || up->port.flags & UPF_NO_TXEN_TEST)
 		goto dont_test_tx_en;
 
+#ifndef CONFIG_ARCH_EMXX
 	/*
 	 * Do a quick test to see if we receive an
 	 * interrupt when we enable the TX irq.
@@ -2125,6 +2164,7 @@ static int serial8250_startup(struct uart_port *port)
 	} else {
 		up->bugs &= ~UART_BUG_TXEN;
 	}
+#endif
 
 dont_test_tx_en:
 	spin_unlock_irqrestore(&up->port.lock, flags);
@@ -2281,7 +2321,12 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	if (up->capabilities & UART_CAP_FIFO && up->port.fifosize > 1) {
 		if (baud < 2400)
+#ifdef CONFIG_ARCH_EMXX
+			fcr = UART_FCR_ENABLE_FIFO | UART_FCR_TRIGGER_1
+						| UART_FCR7_64BYTE;
+#else
 			fcr = UART_FCR_ENABLE_FIFO | UART_FCR_TRIGGER_1;
+#endif
 		else
 			fcr = uart_config[up->port.type].fcr;
 	}
@@ -2442,6 +2487,9 @@ static unsigned int serial8250_port_size(struct uart_8250_port *pt)
 #ifdef CONFIG_ARCH_OMAP
 	if (is_omap_port(pt))
 		return 0x16 << pt->port.regshift;
+#endif
+#ifdef CONFIG_ARCH_EMXX
+	return 11 << pt->port.regshift;
 #endif
 	return 8 << pt->port.regshift;
 }
@@ -3023,6 +3071,13 @@ static int __devexit serial8250_remove(struct platform_device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_ARCH_EMXX
+static void serial8250_start_tx_sus(struct uart_port *port)
+{
+	serial8250_start_tx_sus_count[port->line]++;
+}
+#endif
+
 static int serial8250_suspend(struct platform_device *dev, pm_message_t state)
 {
 	int i;
@@ -3030,8 +3085,21 @@ static int serial8250_suspend(struct platform_device *dev, pm_message_t state)
 	for (i = 0; i < UART_NR; i++) {
 		struct uart_8250_port *up = &serial8250_ports[i];
 
+#ifdef CONFIG_ARCH_EMXX
+		if (emxx_sleep_while_idle) {
+			if (up->port.type != PORT_UNKNOWN)
+				if (!serial8250_tx_empty(&up->port))
+					return -1;
+		} else if (up->port.type != PORT_UNKNOWN
+				&& up->port.dev == &dev->dev) {
+			serial8250_start_tx_sus_count[i] = 0;
+			serial8250_pops.start_tx = serial8250_start_tx_sus;
+			uart_suspend_port(&serial8250_reg, &up->port);
+		}
+#else
 		if (up->port.type != PORT_UNKNOWN && up->port.dev == &dev->dev)
 			uart_suspend_port(&serial8250_reg, &up->port);
+#endif
 	}
 
 	return 0;
@@ -3041,15 +3109,50 @@ static int serial8250_resume(struct platform_device *dev)
 {
 	int i;
 
+#ifdef CONFIG_ARCH_EMXX
+	if (emxx_sleep_while_idle)
+		return 0;
+
+	for (i = 0; i < UART_NR; i++) {
+		struct uart_8250_port *up = &serial8250_ports[i];
+		if (up->port.type != PORT_UNKNOWN
+				 && up->port.dev == &dev->dev) {
+			serial8250_resume_port(i);
+		}
+	}
+	serial8250_pops.start_tx = serial8250_start_tx;
+	for (i = 0; i < UART_NR; i++) {
+		struct uart_8250_port *up = &serial8250_ports[i];
+		if (serial8250_start_tx_sus_count[i] > 1)
+			serial8250_start_tx(&up->port);
+	}
+#else
 	for (i = 0; i < UART_NR; i++) {
 		struct uart_8250_port *up = &serial8250_ports[i];
 
 		if (up->port.type != PORT_UNKNOWN && up->port.dev == &dev->dev)
 			serial8250_resume_port(i);
 	}
+#endif
 
 	return 0;
 }
+
+#ifdef CONFIG_ARCH_EMXX
+int serial8250_idle_suspend(void)
+{
+	pm_message_t state = { .event = 0, };
+
+	return serial8250_suspend(NULL, state);
+}
+EXPORT_SYMBOL(serial8250_idle_suspend);
+
+void serial8250_idle_resume(void)
+{
+	serial8250_resume(NULL);
+}
+EXPORT_SYMBOL(serial8250_idle_resume);
+#endif
 
 static struct platform_driver serial8250_isa_driver = {
 	.probe		= serial8250_probe,

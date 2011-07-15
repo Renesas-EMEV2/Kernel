@@ -28,6 +28,7 @@ obj-$(CONFIG_USB_FSL_QE)	+= fsl_qe_udc.o
 obj-$(CONFIG_USB_CI13XXX)	+= ci13xxx_udc.o
 obj-$(CONFIG_USB_S3C_HSOTG)	+= s3c-hsotg.o
 obj-$(CONFIG_USB_LANGWELL)	+= langwell_udc.o
+obj-$(CONFIG_USB_EMXX)		+= emxx_udc.o
 
 #
 # USB gadget drivers
@@ -70,4 +71,11 @@ obj-$(CONFIG_USB_ANDROID_MASS_STORAGE)	+= f_mass_storage.o
 obj-$(CONFIG_USB_ANDROID_MTP)	+= f_mtp.o
 obj-$(CONFIG_USB_ANDROID_RNDIS)	+= f_rndis.o u_ether.o
 obj-$(CONFIG_USB_ANDROID_ACCESSORY)	+= f_accessory.o
+
+g_nwm-objs			:= fc_nwm.o
+g_nwm_msc-objs			:= nwm_msc.o
+g_nwm_mtp-objs			:= nwm_mtp.o
+obj-$(CONFIG_USB_NWM)		+= g_nwm.o
+obj-$(CONFIG_USB_NWM_MSC)	+= g_nwm_msc.o
+obj-$(CONFIG_USB_NWM_MTP)	+= g_nwm_mtp.o
 

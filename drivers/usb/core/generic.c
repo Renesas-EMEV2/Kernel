@@ -26,6 +26,23 @@ static inline const char *plural(int n)
 	return (n == 1 ? "" : "s");
 }
 
+#ifdef CONFIG_USB_EHCI_TEST_MODE
+static int is_support_device(struct usb_interface_descriptor *desc)
+{
+	return desc->bInterfaceClass == USB_CLASS_HUB
+
+#if defined(CONFIG_USB_STORAGE) || defined(CONFIG_USB_STORAGE_MODULE)
+		|| desc->bInterfaceClass == USB_CLASS_MASS_STORAGE
+#endif	/* USB_STORAGE */
+
+#if defined(CONFIG_USB_HID) || defined(CONFIG_USB_HID_MODULE)
+		|| desc->bInterfaceClass == USB_CLASS_HID
+#endif	/* USB_HID */
+
+		|| 0;
+}
+#endif	/* CONFIG_USB_EHCI_TEST_MODE */
+
 static int is_rndis(struct usb_interface_descriptor *desc)
 {
 	return desc->bInterfaceClass == USB_CLASS_COMM
@@ -56,6 +73,15 @@ int usb_choose_configuration(struct usb_device *udev)
 		/* It's possible that a config has no interfaces! */
 		if (c->desc.bNumInterfaces > 0)
 			desc = &c->intf_cache[0]->altsetting->desc;
+
+#ifdef CONFIG_USB_EHCI_TEST_MODE
+		if (udev->parent) {
+			if (is_support_device(desc))
+				printk("\n ===== Support Device(Interface)\n\n");
+			else
+				printk("\n ***** Not Support Device(Interface)\n\n");
+		}
+#endif	/* CONFIG_USB_EHCI_TEST_MODE */
 
 		/*
 		 * HP's USB bus-powered keyboard has only one configuration

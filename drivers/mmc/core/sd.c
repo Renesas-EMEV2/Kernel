@@ -342,6 +342,10 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 #endif
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
+#ifdef CONFIG_ARCH_EMXX
+	/* initialize select state */
+	host->select = 0xffffffff;
+#endif
 
 	/*
 	 * Since we're changing the OCR value, we seem to
@@ -529,8 +533,13 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		}
 	}
 
+#ifdef CONFIG_ARCH_EMXX
+	if (!oldcard)
+		host->card[0] = card;
+#else
 	if (!oldcard)
 		host->card = card;
+#endif
 
 	return 0;
 
@@ -548,10 +557,17 @@ err:
 static void mmc_sd_remove(struct mmc_host *host)
 {
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+
+	mmc_remove_card(host->card[0]);
+	host->card[0] = NULL;
+#else
 	BUG_ON(!host->card);
 
 	mmc_remove_card(host->card);
 	host->card = NULL;
+#endif
 }
 
 /*
@@ -565,7 +581,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 #endif
 
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+#else
 	BUG_ON(!host->card);
+#endif
        
 	mmc_claim_host(host);
 
@@ -574,7 +594,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 	 */
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	while(retries) {
+#ifdef CONFIG_ARCH_EMXX
+		err = mmc_send_status(host->card[0], NULL);
+#else
 		err = mmc_send_status(host->card, NULL);
+#endif
 		if (err) {
 			retries--;
 			udelay(5);
@@ -587,7 +611,11 @@ static void mmc_sd_detect(struct mmc_host *host)
 		       __func__, mmc_hostname(host), err);
 	}
 #else
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_send_status(host->card[0], NULL);
+#else
 	err = mmc_send_status(host->card, NULL);
+#endif
 #endif
 	mmc_release_host(host);
 
@@ -606,12 +634,20 @@ static void mmc_sd_detect(struct mmc_host *host)
 static int mmc_sd_suspend(struct mmc_host *host)
 {
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+#else
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
 	if (!mmc_host_is_spi(host))
 		mmc_deselect_cards(host);
+#ifdef CONFIG_ARCH_EMXX
+	host->card[0]->state &= ~MMC_STATE_HIGHSPEED;
+#else
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
+#endif
 	mmc_release_host(host);
 
 	return 0;
@@ -631,13 +667,21 @@ static int mmc_sd_resume(struct mmc_host *host)
 #endif
 
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(!host->card[0]);
+#else
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
 #ifdef CONFIG_MMC_PARANOID_SD_INIT
 	retries = 5;
 	while (retries) {
+#ifdef CONFIG_ARCH_EMXX
+		err = mmc_sd_init_card(host, host->ocr, host->card[0]);
+#else
 		err = mmc_sd_init_card(host, host->ocr, host->card);
+#endif
 
 		if (err) {
 			printk(KERN_ERR "%s: Re-init card rc = %d (retries = %d)\n",
@@ -649,7 +693,11 @@ static int mmc_sd_resume(struct mmc_host *host)
 		break;
 	}
 #else
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_sd_init_card(host, host->ocr, host->card[0]);
+#else
 	err = mmc_sd_init_card(host, host->ocr, host->card);
+#endif
 #endif
 	mmc_release_host(host);
 
@@ -658,10 +706,17 @@ static int mmc_sd_resume(struct mmc_host *host)
 
 static void mmc_sd_power_restore(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	host->card[0]->state &= ~MMC_STATE_HIGHSPEED;
+	mmc_claim_host(host);
+	mmc_sd_init_card(host, host->ocr, host->card[0]);
+	mmc_release_host(host);
+#else
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
 	mmc_claim_host(host);
 	mmc_sd_init_card(host, host->ocr, host->card);
 	mmc_release_host(host);
+#endif
 }
 
 static const struct mmc_bus_ops mmc_sd_ops = {
@@ -772,15 +827,24 @@ int mmc_attach_sd(struct mmc_host *host, u32 ocr)
 
 	mmc_release_host(host);
 
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_add_card(host->card[0]);
+#else
 	err = mmc_add_card(host->card);
+#endif
 	if (err)
 		goto remove_card;
 
 	return 0;
 
 remove_card:
+#ifdef CONFIG_ARCH_EMXX
+	mmc_remove_card(host->card[0]);
+	host->card[0] = NULL;
+#else
 	mmc_remove_card(host->card);
 	host->card = NULL;
+#endif
 	mmc_claim_host(host);
 err:
 	mmc_detach_bus(host);

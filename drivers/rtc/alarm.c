@@ -412,6 +412,13 @@ static int alarm_suspend(struct platform_device *pdev, pm_message_t state)
 			rtc_delta).tv_sec;
 
 		rtc_time_to_tm(rtc_alarm_time, &rtc_alarm.time);
+#ifdef CONFIG_ARCH_EMXX
+		/* Adjust minuts */
+		if (rtc_alarm.time.tm_sec != 0) {
+			rtc_alarm.time.tm_sec = 0;
+			rtc_alarm.time.tm_min++;
+		}
+#endif
 		rtc_alarm.enabled = 1;
 		rtc_set_alarm(alarm_rtc_dev, &rtc_alarm);
 		rtc_read_time(alarm_rtc_dev, &rtc_current_rtc_time);

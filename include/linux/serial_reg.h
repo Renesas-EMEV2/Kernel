@@ -325,5 +325,29 @@
 #define UART_OMAP_SYSS		0x16	/* System status register */
 #define UART_OMAP_WER		0x17	/* Wake-up enable register */
 
+#ifdef CONFIG_ARCH_EMXX
+#undef UART_IER
+#undef UART_IIR
+#undef UART_FCR
+#undef UART_LCR
+#undef UART_MCR
+#undef UART_LSR
+#undef UART_MSR
+#undef UART_SCR
+#undef UART_DLL
+#undef UART_DLM
+
+#define UART_IER        (1)
+#define UART_IIR        (2)
+#define UART_FCR        (3)
+#define UART_LCR        (4)
+#define UART_MCR        (5)
+#define UART_LSR        (6)
+#define UART_MSR        (7)
+#define UART_SCR        (8)
+#define UART_DLL        (9)
+#define UART_DLM        (10)
+#endif
+
 #endif /* _LINUX_SERIAL_REG_H */
 

@@ -56,4 +56,7 @@
 #define I2C_HW_SAA7146		0x060000 /* SAA7146 video decoder bus */
 #define I2C_HW_SAA7134		0x090000 /* SAA7134 video decoder bus */
 
+/* --- EMXX i2c adapter */
+#define I2C_HW_EMXX		0x200000
+
 #endif /* LINUX_I2C_ID_H */

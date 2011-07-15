@@ -324,6 +324,10 @@ config IMX2_WDT
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx2_wdt.
 
+config EMXX_WATCHDOG
+	tristate "EMMA Mobile series Watchdog"
+	depends on ARCH_EMXX
+
 # AVR32 Architecture
 
 config AT32AP700X_WDT

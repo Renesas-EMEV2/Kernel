@@ -530,4 +530,8 @@ config MTD_NAND_NUC900
 	  This enables the driver for the NAND Flash on evaluation board based
 	  on w90p910 / NUC9xx.
 
+config MTD_NAND_EMEV
+	tristate "NAND Flash device on emev board"
+	depends on ARCH_EMXX && MTD_NAND
+
 endif # MTD_NAND

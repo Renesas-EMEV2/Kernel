@@ -398,7 +398,7 @@ config CPU_V6
 # ARMv6k
 config CPU_32v6K
 	bool "Support ARM V6K processor extensions" if !SMP
-	depends on CPU_V6
+	depends on CPU_V6 || CPU_V7
 	default y if SMP && !(ARCH_MX3 || ARCH_OMAP2)
 	help
 	  Say Y here if your ARMv6 processor supports the 'K' extension.
@@ -697,6 +697,20 @@ config CPU_DCACHE_WRITETHROUGH
 	  Say Y here to use the data cache in writethrough mode. Unless you
 	  specifically require this or are unsure, say N.
 
+config CPU_DCACHE_PREFETCH
+	bool "Enable D-cache data prefetching"
+	depends on CPU_V7
+	help
+	  Say Y here if you activate an automatic prefetcher implemented
+	  in the Cortex-A9 data cache, that can monitor and prefetch
+	  two independent data stream.
+
+	  Note that when the software issues a PLD instruction the PLD
+	  prefetch unit always takes precedence over requests from the
+	  data prefetch mechanism.  Prefetched lines in the speculative
+	  prefetcher can be dropped before they are allocated.  PLD
+	  instruction are always executed and never dropped.
+
 config CPU_CACHE_ROUND_ROBIN
 	bool "Round robin I and D cache replacement algorithm"
 	depends on (CPU_ARM926T || CPU_ARM946E || CPU_ARM1020) && (!CPU_ICACHE_DISABLE || !CPU_DCACHE_DISABLE)
@@ -716,17 +730,6 @@ config TLS_REG_EMUL
 	  An SMP system using a pre-ARMv6 processor (there are apparently
 	  a few prototypes like that in existence) and therefore access to
 	  that required register must be emulated.
-
-config HAS_TLS_REG
-	bool
-	depends on !TLS_REG_EMUL
-	default y if SMP || CPU_32v7
-	help
-	  This selects support for the CP15 thread register.
-	  It is defined to be available on some ARMv6 processors (including
-	  all SMP capable ARMv6's) or later processors.  User space may
-	  assume directly accessing that register and always obtain the
-	  expected value only on ARMv7 and above.
 
 config NEEDS_SYSCALL_FOR_CMPXCHG
 	bool
@@ -782,12 +785,20 @@ config CACHE_L2X0
 	bool "Enable the L2x0 outer cache controller"
 	depends on REALVIEW_EB_ARM11MP || MACH_REALVIEW_PB11MP || MACH_REALVIEW_PB1176 || \
 		   REALVIEW_EB_A9MP || ARCH_MX35 || ARCH_MX31 || MACH_REALVIEW_PBX || \
-		   ARCH_NOMADIK || ARCH_OMAP4 || ARCH_U8500 || ARCH_VEXPRESS_CA9X4
+		   ARCH_NOMADIK || ARCH_OMAP4 || ARCH_U8500 || ARCH_VEXPRESS_CA9X4 || ARCH_EMXX
 	default y
 	select OUTER_CACHE
 	select OUTER_CACHE_SYNC
 	help
 	  This option enables the L2x0 PrimeCell.
+
+config CACHE_PL310
+	bool
+	depends on CACHE_L2X0
+	default y if CPU_V7 && !CPU_V6
+	help
+	  This option enables optimisations for the PL310 cache
+	  controller.
 
 config CACHE_TAUROS2
 	bool "Enable the Tauros2 L2 cache controller"

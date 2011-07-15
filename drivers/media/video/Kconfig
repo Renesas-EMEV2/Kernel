@@ -969,6 +969,9 @@ config VIDEO_OMAP2
 	---help---
 	  This is a v4l2 driver for the TI OMAP2 camera capture interface
 
+source "drivers/media/video/emxx/Kconfig"
+source "drivers/media/video/emxx_cam/Kconfig"
+
 #
 # USB Multimedia device configuration
 #

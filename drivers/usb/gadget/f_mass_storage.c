@@ -1848,6 +1848,14 @@ static int check_command(struct fsg_common *common, int cmnd_size,
 			    "but we got %d\n", name,
 			    cmnd_size, common->cmnd_size);
 			cmnd_size = common->cmnd_size;
+#ifdef CONFIG_USB_GADGET_EMXX
+		} else if (common->cmnd[0] == SC_INQUIRY &&
+				common->cmnd_size == 12)
+			cmnd_size = common->cmnd_size;
+		else if (common->cmnd[0] == SC_READ_CAPACITY &&
+				common->cmnd_size == 12) {
+			cmnd_size = common->cmnd_size;
+#endif /* CONFIG_USB_GADGET_EMXX */
 		} else {
 			common->phase_error = 1;
 			return -EINVAL;

@@ -30,6 +30,12 @@
 #include <sound/pcm_params.h>
 #include <sound/timer.h>
 
+#ifdef CONFIG_ARCH_EMXX
+extern int snd_pcm_drain(struct snd_pcm_substream *substream, struct file *file);
+extern int snd_pcm_drop(struct snd_pcm_substream *substream);
+#endif
+
+
 /*
  * fill ring buffer with silence
  * runtime->silence_start: starting pointer to silence area
@@ -1799,6 +1805,9 @@ static snd_pcm_sframes_t snd_pcm_lib_write1(struct snd_pcm_substream *substream,
 	snd_pcm_uframes_t xfer = 0;
 	snd_pcm_uframes_t offset = 0;
 	int err = 0;
+#ifdef CONFIG_ARCH_EMXX
+	static snd_pcm_uframes_t old_xfer = 0;
+#endif
 
 	if (size == 0)
 		return 0;
@@ -1885,6 +1894,17 @@ static snd_pcm_sframes_t snd_pcm_lib_write1(struct snd_pcm_substream *substream,
 	if (xfer > 0 && err >= 0)
 		snd_pcm_update_state(substream, runtime);
 	snd_pcm_stream_unlock_irq(substream);
+#ifdef CONFIG_ARCH_EMXX
+	if (old_xfer % runtime->period_size) {
+		if (0==((old_xfer+xfer) % runtime->period_size))
+			snd_pcm_drain(substream, substream->file);
+		else {
+			if (xfer == 0)
+				snd_pcm_drop(substream);
+		}
+	}
+	old_xfer = (old_xfer+xfer) % runtime->period_size;
+#endif
 	return xfer > 0 ? (snd_pcm_sframes_t)xfer : err;
 }
 

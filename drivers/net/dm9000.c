@@ -162,6 +162,13 @@ dm9000_reset(board_info_t * db)
 	udelay(200);
 	writeb(NCR_RST, db->io_data);
 	udelay(200);
+#ifdef CONFIG_MACH_EMGR
+	/* RESET device : 2nd reset (Reference from U-Boot) */
+	writeb(DM9000_NCR, db->io_addr);
+	udelay(200);
+	writeb(NCR_RST, db->io_data);
+	udelay(200);
+#endif
 }
 
 /*

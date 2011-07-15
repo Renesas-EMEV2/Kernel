@@ -170,6 +170,9 @@ enum v4l2_memory {
 	V4L2_MEMORY_MMAP             = 1,
 	V4L2_MEMORY_USERPTR          = 2,
 	V4L2_MEMORY_OVERLAY          = 3,
+#ifdef CONFIG_VIDEO_EMXX
+	V4L2_MEMORY_PHYSADDR         = 4,
+#endif
 };
 
 /* see also http://vektor.theorem.ca/graphics/ycbcr/ */
@@ -317,6 +320,9 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_NV21    v4l2_fourcc('N', 'V', '2', '1') /* 12  Y/CrCb 4:2:0  */
 #define V4L2_PIX_FMT_NV16    v4l2_fourcc('N', 'V', '1', '6') /* 16  Y/CbCr 4:2:2  */
 #define V4L2_PIX_FMT_NV61    v4l2_fourcc('N', 'V', '6', '1') /* 16  Y/CrCb 4:2:2  */
+#ifdef CONFIG_VIDEO_EMXX
+#define V4L2_PIX_FMT_NV422   V4L2_PIX_FMT_NV16
+#endif
 
 /* Bayer formats - see http://www.siliconimaging.com/RGB%20Bayer.htm */
 #define V4L2_PIX_FMT_SBGGR8  v4l2_fourcc('B', 'A', '8', '1') /*  8  BGBG.. GRGR.. */
@@ -514,6 +520,37 @@ struct v4l2_requestbuffers {
 	__u32			reserved[2];
 };
 
+#ifdef CONFIG_VIDEO_EMXX
+struct v4l2_phys_add {
+	unsigned long		PhysAddr_Y;
+	unsigned long		PhysAddr_UV;
+	unsigned long		PhysAddr_V;
+};
+#endif
+
+#ifdef CONFIG_VIDEO_EMXX_FILTER
+struct v4l2_filter_option {
+	unsigned long		filter_option;	/* SIZ_FILTOPT */
+	unsigned long		filt0;		/* SIZ_FILT0   */
+	unsigned long		filt1;		/* SIZ_FILT1   */
+	unsigned long		filt2;		/* SIZ_FILT2   */
+	unsigned long		filt3;		/* SIZ_FILT3   */
+	unsigned long		filt4;		/* SIZ_FILT4   */
+	unsigned long		filt5;		/* SIZ_FILT5   */
+	unsigned long		filt6;		/* SIZ_FILT6   */
+	unsigned long		filt7;		/* SIZ_FILT7   */
+};
+/* filter_option */
+#define SIZ_FILTOPT_MODE_4x4FILT_MINUS		0x0
+#define SIZ_FILTOPT_MODE_4x4FILT_PLUS		0x1
+#define SIZ_FILTOPT_MODE_2x2FILT_WITH_BUFFER	0x2
+#define SIZ_FILTOPT_MODE_2x2FILT		0x4
+#define SIZ_FILTER_DEFAULT			0x7	/* SIZ Driver Default */
+							/* <Linear Filter>    */
+#define SIZ_FILTER_SMOOTHING			0x8	/* SIZ Driver Default */
+							/* <Smoothing Filter> */
+#endif
+
 struct v4l2_buffer {
 	__u32			index;
 	enum v4l2_buf_type      type;
@@ -524,16 +561,37 @@ struct v4l2_buffer {
 	struct v4l2_timecode	timecode;
 	__u32			sequence;
 
+#ifdef CONFIG_VIDEO_EMXX
+	unsigned short		width;	/* Decipherment image(width)  */
+	unsigned short		height;	/* Decipherment image(height) */
+	unsigned short		d_width;/* Decipherment image(Effective area) */
+#endif
+#ifdef CONFIG_VIDEO_EMXX_FILTER
+	struct v4l2_filter_option	filter;	/* resize filter */
+#endif
+
 	/* memory location */
 	enum v4l2_memory        memory;
 	union {
 		__u32           offset;
 		unsigned long   userptr;
+#ifdef CONFIG_VIDEO_EMXX
+		struct v4l2_phys_add phys_add;
+#endif
 	} m;
 	__u32			length;
 	__u32			input;
 	__u32			reserved;
 };
+
+#ifdef CONFIG_VIDEO_EMXX
+struct v4l2_effect {
+	__u32			sequence;
+	struct v4l2_rect	source_crop;	/* VIDIOC_S_CROP */
+	__s32			movie_angle;	/* VIDIOC_S_CTRL */
+	struct v4l2_rect	screen;		/* VIDIOC_S_FMT  */
+};
+#endif
 
 /*  Flags for 'flags' field */
 #define V4L2_BUF_FLAG_MAPPED	0x0001  /* Buffer is mapped (flag) */
@@ -546,6 +604,10 @@ struct v4l2_buffer {
 #define V4L2_BUF_FLAG_ERROR	0x0040
 #define V4L2_BUF_FLAG_TIMECODE	0x0100	/* timecode field is valid */
 #define V4L2_BUF_FLAG_INPUT     0x0200  /* input field is valid */
+#ifdef CONFIG_VIDEO_EMXX
+#define V4L2_BUF_FLAG_CANCELED  0x4000  /* this frame is canceled */
+#define V4L2_BUF_FLAG_SKIPPED   0x8000  /* this frame is skipped  */
+#endif /* CONFIG_VIDEO_EMXX */
 
 /*
  *	O V E R L A Y   P R E V I E W
@@ -892,6 +954,16 @@ struct v4l2_output {
 #define V4L2_OUTPUT_TYPE_ANALOG			2
 #define V4L2_OUTPUT_TYPE_ANALOGVGAOVERLAY	3
 
+#ifdef CONFIG_VIDEO_EMXX
+#define V4L2_OUTPUT_LCD        0
+#define V4L2_OUTPUT_HDMI_1080I 1
+#define V4L2_OUTPUT_HDMI_720P  2
+#ifdef CONFIG_EMXX_NTS
+#define V4L2_OUTPUT_NTSC       3
+#define V4L2_OUTPUT_PAL        4
+#endif
+#endif
+
 /* capabilities flags */
 #define V4L2_OUT_CAP_PRESETS		0x00000001 /* Supports S_DV_PRESET */
 #define V4L2_OUT_CAP_CUSTOM_TIMINGS	0x00000002 /* Supports S_DV_TIMINGS */
@@ -904,6 +976,10 @@ struct v4l2_control {
 	__u32		     id;
 	__s32		     value;
 };
+
+#ifdef CONFIG_VIDEO_EMXX
+#define V4L2_MOVIE_DISPLAY_ANGLE		99
+#endif
 
 struct v4l2_ext_control {
 	__u32 id;
@@ -1562,6 +1638,22 @@ struct v4l2_sliced_vbi_data {
 	__u8    data[48];
 };
 
+#ifdef CONFIG_VIDEO_EMXX
+/* v4l2 work buffer(for IPU) setting */
+enum workbuf_active{
+	WORKBUF_NO_INIT = 0,
+	WORKBUF_INIT    = 1,
+	WORKBUF_ACTIVE  = 2,
+};
+
+struct v4l2_workbuffer /* V4L2_BUF_TYPE_PRIVATE */
+{
+	enum workbuf_active  active;
+	__u32                rot_addr; /* (IPU-ROT work buffer) start physical address */
+	__u32                rot_size; /* (IPU-ROT work buffer) buffer size            */
+};
+#endif /* CONFIG_VIDEO_EMXX */
+
 /*
  * Sliced VBI data inserted into MPEG Streams
  */
@@ -1795,6 +1887,11 @@ struct v4l2_dbg_chip_ident {
 #define	VIDIOC_DQEVENT		 _IOR('V', 89, struct v4l2_event)
 #define	VIDIOC_SUBSCRIBE_EVENT	 _IOW('V', 90, struct v4l2_event_subscription)
 #define	VIDIOC_UNSUBSCRIBE_EVENT _IOW('V', 91, struct v4l2_event_subscription)
+
+#ifdef CONFIG_VIDEO_EMXX
+#define VIDIOC_G_EFFECT          _IOR('V', 92, struct v4l2_effect)
+#define VIDIOC_S_EFFECT          _IOW('V', 93, struct v4l2_effect)
+#endif
 
 /* Reminder: when adding new ioctls please add support for them to
    drivers/media/video/v4l2-compat-ioctl32.c as well! */

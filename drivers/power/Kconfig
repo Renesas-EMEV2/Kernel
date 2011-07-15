@@ -142,4 +142,8 @@ config CHARGER_PCF50633
 	help
 	 Say Y to include support for NXP PCF50633 Main Battery Charger.
 
+config BATTERY_EMXX
+	tristate "EMMA Mobile series battery driver"
+	depends on ARCH_EMXX
+
 endif # POWER_SUPPLY

@@ -65,9 +65,45 @@ enum videobuf_state {
 	VIDEOBUF_QUEUED     = 2,
 	VIDEOBUF_ACTIVE     = 3,
 	VIDEOBUF_DONE       = 4,
+#ifdef CONFIG_VIDEO_EMXX
+	VIDEOBUF_CANCELED   = 5,
+	VIDEOBUF_DQBUF_PERMIT = 6,
+	VIDEOBUF_ERROR      = 7,
+	VIDEOBUF_IDLE       = 8,
+#else
 	VIDEOBUF_ERROR      = 5,
 	VIDEOBUF_IDLE       = 6,
+#endif
 };
+
+#ifdef CONFIG_VIDEO_EMXX
+/* state_queued flag */ /*** executing process is set. ***/
+enum videobuf_state_queued{
+	STATE_QUEUED_IDLE,
+	STATE_QUEUED_ROT_PREPARED,
+	STATE_QUEUED_ROT_QUEUED,
+	STATE_QUEUED_TMR_PREPARED,
+	STATE_QUEUED_TMR_QUEUED,
+	STATE_QUEUED_LCD_PREPARED,
+	STATE_QUEUED_LCD_QUEUED,
+	STATE_QUEUED_DONE,
+};
+
+/* state_proccess flag */ /*** executed process is set. ***/
+#define STATE_PROCCESS_IDLE         0x00
+#define STATE_PROCCESS_ROT_QUEUED   0x01
+#define STATE_PROCCESS_ROT_COMPLETE 0x02
+#define STATE_PROCCESS_TMR_QUEUED   0x10
+#define STATE_PROCCESS_TMR_COMPLETE 0x20
+#define STATE_PROCCESS_LCD_QUEUED   0x40
+#define STATE_PROCCESS_LCD_COMPLETE 0x80
+
+/* for state_frame */ /*** executed process is set. ***/
+#define STATE_FRAME_DONE       0
+#define STATE_FRAME_IMMEDIATE -1
+#define STATE_FRAME_CANCELED  -2
+#define STATE_FRAME_SKIPPED   -3
+#endif
 
 struct videobuf_buffer {
 	unsigned int            i;
@@ -107,6 +143,28 @@ struct videobuf_buffer {
 	/* Private pointer to allow specific methods to store their data */
 	int			privsize;
 	void                    *priv;
+#ifdef CONFIG_VIDEO_EMXX
+	enum videobuf_state_queued state_queued; /* executed process is set. */
+	unsigned long		state_proccess;  /* executed process is set.  */
+	long			state_frame;     /* executed process is set. */
+
+	struct temp_buffer	*rot_buf;        /* pointer to ROT buffer */
+
+#ifdef CONFIG_VIDEO_EMXX_FILTER
+	struct v4l2_filter_option	filter;	/* resize filter */
+#endif
+	struct v4l2_phys_add	base_addr;
+	struct v4l2_effect	save_effect;	/* the latest set value*/
+#ifdef CONFIG_VIDEO_EMXX_IMAGESIZE
+	__u32	         	image_width;	/* original image width */
+	__u32	         	image_height;	/* original image height */
+#endif
+	__u32	         	pixelformat;
+
+	__u32	         	output;
+	__u32			sequence;
+	wait_queue_head_t       clear_done;
+#endif
 };
 
 struct videobuf_queue_ops {
@@ -119,6 +177,12 @@ struct videobuf_queue_ops {
 			  struct videobuf_buffer *vb);
 	void (*buf_release)(struct videobuf_queue *q,
 			    struct videobuf_buffer *vb);
+#ifdef CONFIG_VIDEO_EMXX
+	int (*buf_cancel)(struct videobuf_queue *q,
+			    struct videobuf_buffer *vb);
+	void (*buf_dqueue)(struct videobuf_queue *q,
+			   struct videobuf_buffer *vb);
+#endif
 };
 
 #define MAGIC_QTYPE_OPS	0x12261003
@@ -167,6 +231,10 @@ struct videobuf_queue {
 
 	/* driver private data */
 	void                       *priv_data;
+#ifdef CONFIG_VIDEO_EMXX
+	__u32                      index_max;
+	__u32                      sequence;
+#endif
 };
 
 int videobuf_waiton(struct videobuf_buffer *vb, int non_blocking, int intr);

@@ -31,12 +31,22 @@
 #define TTB_IRGN_WB	((1 << 0) | (1 << 6))
 
 #ifndef CONFIG_SMP
+#ifdef CONFIG_EMXX_L310_NORAM
+/* PTWs cacheable, inner WB not shareable, outer non-cache not shareable */
+#define TTB_FLAGS	TTB_IRGN_WB|TTB_RGN_NC
+#else
 /* PTWs cacheable, inner WB not shareable, outer WB not shareable */
 #define TTB_FLAGS	TTB_IRGN_WB|TTB_RGN_OC_WB
+#endif
 #define PMD_FLAGS	PMD_SECT_WB
+#else
+#ifdef CONFIG_EMXX_L310_NORAM
+/* PTWs cacheable, inner WBWA shareable, outer non-cache not shareable */
+#define TTB_FLAGS	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_NC
 #else
 /* PTWs cacheable, inner WBWA shareable, outer WBWA not shareable */
 #define TTB_FLAGS	TTB_IRGN_WBWA|TTB_S|TTB_NOS|TTB_RGN_OC_WBWA
+#endif
 #define PMD_FLAGS	PMD_SECT_WBWA|PMD_SECT_S
 #endif
 
@@ -45,6 +55,9 @@ ENTRY(cpu_v7_proc_init)
 ENDPROC(cpu_v7_proc_init)
 
 ENTRY(cpu_v7_proc_fin)
+#ifdef CONFIG_ARCH_EMXX
+	mov	pc, lr
+#else
 	stmfd	sp!, {lr}
 	cpsid	if				@ disable interrupts
 	bl	v7_flush_kern_cache_all
@@ -53,6 +66,7 @@ ENTRY(cpu_v7_proc_fin)
 	bic	r0, r0, #0x0006			@ .............ca.
 	mcr	p15, 0, r0, c1, c0, 0		@ disable caches
 	ldmfd	sp!, {pc}
+#endif
 ENDPROC(cpu_v7_proc_fin)
 
 /*
@@ -76,10 +90,29 @@ ENDPROC(cpu_v7_reset)
  *
  *	IRQs are already disabled.
  */
+#ifdef CONFIG_EMXX_L310
+#include <mach/hardware.h>
+#include <asm/hardware/cache-l2x0.h>
+	.align	5
+ENTRY(cpu_v7_do_idle)
+	ldr	r2, =EMXX_L2CC_VIRT
+	dsb
+
+	mov	r0, #0x1
+	str	r0, [r2, #L2X0_CACHE_SYNC]	@ L2 Sync
+L2_sync_loop:
+	ldr	r0, [r2, #L2X0_CACHE_SYNC]
+	cmp	r0, #0
+	bne	L2_sync_loop
+
+	wfi
+	mov	pc, lr
+#else
 ENTRY(cpu_v7_do_idle)
 	dsb					@ WFI may enter a low-power mode
 	wfi
 	mov	pc, lr
+#endif
 ENDPROC(cpu_v7_do_idle)
 
 ENTRY(cpu_v7_dcache_clean_area)
@@ -189,26 +222,32 @@ cpu_v7_name:
  *	It is assumed that:
  *	- cache type register is implemented
  */
-__v7_setup:
+__v7_ca9mp_setup:
 #ifdef CONFIG_SMP
 	mrc	p15, 0, r0, c1, c0, 1
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?
 	orreq	r0, r0, #(1 << 6) | (1 << 0)	@ Enable SMP/nAMP mode and
 	mcreq	p15, 0, r0, c1, c0, 1		@ TLB ops broadcasting
 #endif
+__v7_setup:
 	adr	r12, __v7_setup_stack		@ the local stack
 	stmia	r12, {r0-r5, r7, r9, r11, lr}
-	bl	v7_flush_dcache_all
+	bl	v7_inv_dcache_all
 	ldmia	r12, {r0-r5, r7, r9, r11, lr}
 
 	mrc	p15, 0, r0, c0, c0, 0		@ read main ID register
 	and	r10, r0, #0xff000000		@ ARM?
 	teq	r10, #0x41000000
-	bne	2f
+	bne	3f
 	and	r5, r0, #0x00f00000		@ variant
 	and	r6, r0, #0x0000000f		@ revision
-	orr	r0, r6, r5, lsr #20-4		@ combine variant and revision
+	orr	r6, r6, r5, lsr #20-4		@ combine variant and revision
+	ubfx	r0, r0, #4, #12			@ primary part number
 
+	/* Cortex-A8 Errata */
+	ldr	r10, =0x00000c08		@ Cortex-A8 primary part number
+	teq	r0, r10
+	bne	2f
 #ifdef CONFIG_ARM_ERRATA_430973
 	teq	r5, #0x00100000			@ only present in r1p*
 	mrceq	p15, 0, r10, c1, c0, 1		@ read aux control register
@@ -216,21 +255,69 @@ __v7_setup:
 	mcreq	p15, 0, r10, c1, c0, 1		@ write aux control register
 #endif
 #ifdef CONFIG_ARM_ERRATA_458693
-	teq	r0, #0x20			@ only present in r2p0
+	teq	r6, #0x20			@ only present in r2p0
 	mrceq	p15, 0, r10, c1, c0, 1		@ read aux control register
 	orreq	r10, r10, #(1 << 5)		@ set L1NEON to 1
 	orreq	r10, r10, #(1 << 9)		@ set PLDNOP to 1
 	mcreq	p15, 0, r10, c1, c0, 1		@ write aux control register
 #endif
 #ifdef CONFIG_ARM_ERRATA_460075
-	teq	r0, #0x20			@ only present in r2p0
+	teq	r6, #0x20			@ only present in r2p0
 	mrceq	p15, 1, r10, c9, c0, 2		@ read L2 cache aux ctrl register
 	tsteq	r10, #1 << 22
 	orreq	r10, r10, #(1 << 22)		@ set the Write Allocate disable bit
 	mcreq	p15, 1, r10, c9, c0, 2		@ write the L2 cache aux ctrl register
 #endif
+	b	3f
 
-2:	mov	r10, #0
+	/* Cortex-A9 Errata */
+2:	ldr	r10, =0x00000c09		@ Cortex-A9 primary part number
+	teq	r0, r10
+	bne	3f
+#ifdef CONFIG_ARM_ERRATA_742230
+	cmp	r6, #0x22			@ only present up to r2p2
+	mrcle	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orrle	r10, r10, #1 << 4		@ set bit #4
+	mcrle	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+#ifdef CONFIG_ARM_ERRATA_742231
+	teq	r6, #0x20			@ present in r2p0
+	teqne	r6, #0x21			@ present in r2p1
+	teqne	r6, #0x22			@ present in r2p2
+	mrceq	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orreq	r10, r10, #1 << 12		@ set bit #12
+	orreq	r10, r10, #1 << 22		@ set bit #22
+	mcreq	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+#ifdef CONFIG_ARM_ERRATA_743622
+	teq	r6, #0x20			@ present in r2p0
+	teqne	r6, #0x21			@ present in r2p1
+	teqne	r6, #0x22			@ present in r2p2
+	teqne	r6, #0x25			@ present in r2p5
+	teqne	r6, #0x26			@ present in r2p6
+	teqne	r6, #0x27			@ present in r2p7
+	teqne	r6, #0x28			@ present in r2p8
+	mrceq	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orreq	r10, r10, #1 << 6		@ set bit #6
+	mcreq	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+#ifdef CONFIG_ARM_ERRATA_751472
+	cmp	r6, #0x28			@ only present up to r2p8
+	mrcle	p15, 0, r10, c15, c0, 1		@ read diagnostic register
+	orrle	r10, r10, #1 << 11		@ set bit #11
+	mcrle	p15, 0, r10, c15, c0, 1		@ write diagnostic register
+#endif
+
+#ifdef CONFIG_CPU_DCACHE_PREFETCH
+	mrc	p15, 0, r10, c1, c0, 1		@ read aux control register
+	orr	r10, r10, #1 << 2		@ set L1 prefetch enable bit
+#ifdef CONFIG_SMP
+	orr	r10, r10, #1 << 1		@ set L2 prefetch hint enable bit
+#endif
+	mcr	p15, 0, r10, c1, c0, 1		@ write aux control register
+#endif
+
+3:	mov	r10, #0
 #ifdef HARVARD_CACHE
 	mcr	p15, 0, r10, c7, c5, 0		@ I+BTB cache invalidate
 #endif
@@ -271,7 +358,11 @@ __v7_setup:
 	 *   NOS = PRRR[24+n] = 1	- not outer shareable
 	 */
 	ldr	r5, =0xff0a81a8			@ PRRR
+#ifdef CONFIG_EMXX_L310_NORAM
+	ldr	r6, =0x000040e0
+#else
 	ldr	r6, =0x40e040e0			@ NMRR
+#endif
 	mcr	p15, 0, r5, c10, c2, 0		@ write PRRR
 	mcr	p15, 0, r6, c10, c2, 1		@ write NMRR
 #endif
@@ -284,6 +375,9 @@ __v7_setup:
 	bic	r0, r0, r5			@ clear bits them
 	orr	r0, r0, r6			@ set them
  THUMB(	orr	r0, r0, #1 << 30	)	@ Thumb exceptions
+#ifdef CONFIG_ARM_ERRATA_716044
+	orr	r0, r0, #(1 << 14)		@ set RR
+#endif
 	mov	pc, lr				@ return to head.S:__ret
 ENDPROC(__v7_setup)
 
@@ -326,6 +420,29 @@ cpu_elf_name:
 
 	.section ".proc.info.init", #alloc, #execinstr
 
+	.type   __v7_ca9mp_proc_info, #object
+__v7_ca9mp_proc_info:
+	.long	0x410fc090		@ Required ID value
+	.long	0xff0ffff0		@ Mask for ID
+	.long   PMD_TYPE_SECT | \
+		PMD_SECT_AP_WRITE | \
+		PMD_SECT_AP_READ | \
+		PMD_FLAGS
+	.long   PMD_TYPE_SECT | \
+		PMD_SECT_XN | \
+		PMD_SECT_AP_WRITE | \
+		PMD_SECT_AP_READ
+	b	__v7_ca9mp_setup
+	.long	cpu_arch_name
+	.long	cpu_elf_name
+	.long	HWCAP_SWP|HWCAP_HALF|HWCAP_THUMB|HWCAP_FAST_MULT|HWCAP_EDSP
+	.long	cpu_v7_name
+	.long	v7_processor_functions
+	.long	v7wbi_tlb_fns
+	.long	v6_user_fns
+	.long	v7_cache_fns
+	.size	__v7_ca9mp_proc_info, . - __v7_ca9mp_proc_info
+
 	/*
 	 * Match any ARMv7 processor core.
 	 */
@@ -344,7 +461,7 @@ __v7_proc_info:
 	b	__v7_setup
 	.long	cpu_arch_name
 	.long	cpu_elf_name
-	.long	HWCAP_SWP|HWCAP_HALF|HWCAP_THUMB|HWCAP_FAST_MULT|HWCAP_EDSP
+	.long	HWCAP_SWP|HWCAP_HALF|HWCAP_THUMB|HWCAP_FAST_MULT|HWCAP_EDSP|HWCAP_TLS
 	.long	cpu_v7_name
 	.long	v7_processor_functions
 	.long	v7wbi_tlb_fns

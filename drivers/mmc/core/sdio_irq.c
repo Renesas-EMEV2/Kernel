@@ -104,7 +104,11 @@ static int sdio_irq_thread(void *_host)
 		ret = __mmc_claim_host(host, &host->sdio_irq_thread_abort);
 		if (ret)
 			break;
+#ifdef CONFIG_ARCH_EMXX
+		ret = process_sdio_pending_irqs(host->card[0]);
+#else
 		ret = process_sdio_pending_irqs(host->card);
+#endif
 		mmc_release_host(host);
 
 		/*

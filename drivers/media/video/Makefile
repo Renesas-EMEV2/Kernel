@@ -181,6 +181,9 @@ obj-$(CONFIG_ARCH_DAVINCI)	+= davinci/
 
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
 
+obj-$(CONFIG_VIDEO_EMXX) += emxx/
+obj-$(CONFIG_VIDEO_EMXX_CAMERA) += emxx_cam/
+
 EXTRA_CFLAGS += -Idrivers/media/dvb/dvb-core
 EXTRA_CFLAGS += -Idrivers/media/dvb/frontends
 EXTRA_CFLAGS += -Idrivers/media/common/tuners

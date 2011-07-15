@@ -158,7 +158,11 @@ static int mmc_decode_csd(struct mmc_card *card)
 /*
  * Read and decode extended CSD.
  */
+#ifdef CONFIG_ARCH_EMXX
+static int mmc_read_ext_csd(struct mmc_card *card, u32 ocr)
+#else
 static int mmc_read_ext_csd(struct mmc_card *card)
+#endif
 {
 	int err;
 	u8 *ext_csd;
@@ -234,13 +238,25 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 			ext_csd[EXT_CSD_SEC_CNT + 1] << 8 |
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
-		if (card->ext_csd.sectors) {
+		/* Cards with density > 2GiB are sector addressed */
+#ifdef CONFIG_ARCH_EMXX
+		if (card->host->card_num > 1) {
+			if (card->ext_csd.sectors > 0x400000)
+				mmc_card_set_blockaddr(card);
+		} else {
+			if ((card->ext_csd.sectors) && (ocr & (1 << 30)))
+				mmc_card_set_blockaddr(card);
+		}
+
+#else
+		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512) {
 			unsigned boot_sectors;
 			/* size is in 256K chunks, i.e. 512 sectors each */
 			boot_sectors = ext_csd[EXT_CSD_BOOT_SIZE_MULTI] * 512;
 			card->ext_csd.sectors -= boot_sectors;
 			mmc_card_set_blockaddr(card);
 		}
+#endif
 	}
 
 	switch (ext_csd[EXT_CSD_CARD_TYPE] & EXT_CSD_CARD_TYPE_MASK) {
@@ -317,15 +333,30 @@ static struct device_type mmc_type = {
  * we're trying to reinitialise.
  */
 static int mmc_init_card(struct mmc_host *host, u32 ocr,
+#ifdef CONFIG_ARCH_EMXX
+	struct mmc_card **oldcard)
+#else
 	struct mmc_card *oldcard)
+#endif
 {
 	struct mmc_card *card;
 	int err;
 	u32 cid[4];
 	unsigned int max_dtr;
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+	u32 rocr;
+#endif
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
+#ifdef CONFIG_ARCH_EMXX
+	BUG_ON(host->card_num > MMC_CARD_MAX_NUM);
+	BUG_ON(oldcard && !oldcard[0]);
+
+	/* initialize select state */
+	host->select = 0xffffffff;
+#endif
 
 	/*
 	 * Since we're changing the OCR value, we seem to
@@ -336,10 +367,60 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	mmc_go_idle(host);
 
 	/* The extra bit indicates that we support high capacity */
+#ifdef CONFIG_ARCH_EMXX
+	err = mmc_send_op_cond(host, ocr | (1 << 30), &rocr);
+#else
 	err = mmc_send_op_cond(host, ocr | (1 << 30), NULL);
+#endif
 	if (err)
 		goto err;
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		err = mmc_all_send_cid(host, cid);
+		if (err) {
+			if (i == 0) {
+				printk(KERN_ERR "%s:%d: Error \n",
+							__func__, __LINE__);
+				goto err;
+			} else {
+				host->card_num = i;
+				break;
+			}
+		}
+
+		if (oldcard) {
+			if (memcmp(cid, oldcard[i]->raw_cid,
+							sizeof(cid)) != 0) {
+				err = -ENOENT;
+				printk(KERN_ERR "%s:%d: Error \n",
+							__func__, __LINE__);
+				goto err;
+			}
+			host->card[i] = oldcard[i];
+		} else {
+			/*
+			 * Allocate card structure.
+			 */
+			host->card[i] = mmc_alloc_card(host, &mmc_type);
+			if (IS_ERR(host->card[i])) {
+				err = PTR_ERR(host->card[i]);
+				goto err;
+			}
+
+			host->card[i]->type = MMC_TYPE_MMC;
+			host->card[i]->rca = i+1;
+			memcpy(host->card[i]->raw_cid, cid, sizeof(cid));
+		}
+		/*
+		 * Set card RCA.
+		 */
+		err = mmc_set_relative_addr(host->card[i]);
+		if (err)
+			goto free_card;
+	}
+	mmc_set_bus_mode(host, MMC_BUSMODE_PUSHPULL);
+#else
 	/*
 	 * For SPI, enable CRC as appropriate.
 	 */
@@ -388,10 +469,14 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		err = mmc_set_relative_addr(card);
 		if (err)
 			goto free_card;
-
 		mmc_set_bus_mode(host, MMC_BUSMODE_PUSHPULL);
 	}
+#endif
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		card = host->card[i];
+#endif
 	if (!oldcard) {
 		/*
 		 * Fetch CSD from card.
@@ -421,9 +506,21 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		/*
 		 * Fetch and process extended CSD.
 		 */
+#ifdef CONFIG_ARCH_EMXX
+		if (i == 0) {
+			err = mmc_read_ext_csd(card, rocr);
+			if (err)
+				goto free_card;
+		} else {
+			host->card[i]->ext_csd = host->card[0]->ext_csd;
+			if (host->card[i]->ext_csd.sectors)
+				mmc_card_set_blockaddr(card);
+		}
+#else
 		err = mmc_read_ext_csd(card);
 		if (err)
 			goto free_card;
+#endif
 	}
 
 	/*
@@ -490,15 +587,27 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_set_bus_width(card->host, bus_width);
 		}
 	}
-
+#ifdef CONFIG_ARCH_EMXX
+	} /* for */
+#else
 	if (!oldcard)
 		host->card = card;
+#endif
 
 	return 0;
 
 free_card:
+#ifdef CONFIG_ARCH_EMXX
+	if (!oldcard) {
+		for (i = 0; i < host->card_num; i++) {
+			mmc_remove_card(host->card[i]);
+			host->card[i] = NULL;
+		}
+	}
+#else
 	if (!oldcard)
 		mmc_remove_card(card);
+#endif
 err:
 
 	return err;
@@ -509,11 +618,22 @@ err:
  */
 static void mmc_remove(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+#endif
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		BUG_ON(!host->card[i]);
+		mmc_remove_card(host->card[i]);
+		host->card[i] = NULL;
+	}
+#else
 	BUG_ON(!host->card);
 
 	mmc_remove_card(host->card);
 	host->card = NULL;
+#endif
 }
 
 /*
@@ -521,17 +641,31 @@ static void mmc_remove(struct mmc_host *host)
  */
 static void mmc_detect(struct mmc_host *host)
 {
-	int err;
+	int err = 0;
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+#endif
 
 	BUG_ON(!host);
+#ifndef CONFIG_ARCH_EMXX
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
 
 	/*
 	 * Just check if our card has been removed.
 	 */
+#ifdef CONFIG_ARCH_EMXX
+	if (host->ios.power_mode != MMC_POWER_OFF) {
+		for (i = 0; i < host->card_num; i++) {
+			if (host->card[i])
+				err |= mmc_send_status(host->card[i], NULL);
+		}
+	}
+#else
 	err = mmc_send_status(host->card, NULL);
+#endif
 
 	mmc_release_host(host);
 
@@ -549,13 +683,26 @@ static void mmc_detect(struct mmc_host *host)
  */
 static int mmc_suspend(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+#endif
 	BUG_ON(!host);
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++)
+		BUG_ON(!host->card[i]);
+#else
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
 	if (!mmc_host_is_spi(host))
 		mmc_deselect_cards(host);
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++)
+		host->card[i]->state &= ~MMC_STATE_HIGHSPEED;
+#else
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
+#endif
 	mmc_release_host(host);
 
 	return 0;
@@ -569,13 +716,28 @@ static int mmc_suspend(struct mmc_host *host)
  */
 static int mmc_resume(struct mmc_host *host)
 {
-	int err;
+	int err = 0;
+#ifdef CONFIG_ARCH_EMXX
+	int i, skip_flag = 0;
+#endif
 
 	BUG_ON(!host);
+#ifndef CONFIG_ARCH_EMXX
 	BUG_ON(!host->card);
+#endif
 
 	mmc_claim_host(host);
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		if (host->card[i] == NULL)
+			skip_flag = 1;
+	}
+	if (!skip_flag) {
+		err = mmc_init_card(host, host->ocr, host->card);
+	}
+#else
 	err = mmc_init_card(host, host->ocr, host->card);
+#endif
 	mmc_release_host(host);
 
 	return err;
@@ -583,7 +745,13 @@ static int mmc_resume(struct mmc_host *host)
 
 static void mmc_power_restore(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+	for (i = 0; i < host->card_num; i++)
+		host->card[i]->state &= ~MMC_STATE_HIGHSPEED;
+#else
 	host->card->state &= ~MMC_STATE_HIGHSPEED;
+#endif
 	mmc_claim_host(host);
 	mmc_init_card(host, host->ocr, host->card);
 	mmc_release_host(host);
@@ -591,7 +759,11 @@ static void mmc_power_restore(struct mmc_host *host)
 
 static int mmc_sleep(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	struct mmc_card *card = host->card[0];
+#else
 	struct mmc_card *card = host->card;
+#endif
 	int err = -ENOSYS;
 
 	if (card && card->ext_csd.rev >= 3) {
@@ -606,7 +778,11 @@ static int mmc_sleep(struct mmc_host *host)
 
 static int mmc_awake(struct mmc_host *host)
 {
+#ifdef CONFIG_ARCH_EMXX
+	struct mmc_card *card = host->card[0];
+#else
 	struct mmc_card *card = host->card;
+#endif
 	int err = -ENOSYS;
 
 	if (card && card->ext_csd.rev >= 3) {
@@ -656,6 +832,9 @@ static void mmc_attach_bus_ops(struct mmc_host *host)
 int mmc_attach_mmc(struct mmc_host *host, u32 ocr)
 {
 	int err;
+#ifdef CONFIG_ARCH_EMXX
+	int i;
+#endif
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
@@ -701,15 +880,30 @@ int mmc_attach_mmc(struct mmc_host *host, u32 ocr)
 
 	mmc_release_host(host);
 
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		err = mmc_add_card(host->card[i]);
+		if (err)
+			goto remove_card;
+	}
+#else
 	err = mmc_add_card(host->card);
 	if (err)
 		goto remove_card;
+#endif
 
 	return 0;
 
 remove_card:
+#ifdef CONFIG_ARCH_EMXX
+	for (i = 0; i < host->card_num; i++) {
+		mmc_remove_card(host->card[i]);
+		host->card[i] = NULL;
+	}
+#else
 	mmc_remove_card(host->card);
 	host->card = NULL;
+#endif
 	mmc_claim_host(host);
 err:
 	mmc_detach_bus(host);

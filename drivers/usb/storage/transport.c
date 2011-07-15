@@ -134,6 +134,16 @@ static int usb_stor_msg_common(struct us_data *us, int timeout)
 	if (test_bit(US_FLIDX_ABORTING, &us->dflags))
 		return -EIO;
 
+#ifdef CONFIG_ARCH_EMXX
+	{
+		struct usb_device	*dev;
+
+		dev = us->current_urb->dev;
+		if ((!dev) || (dev->state < USB_STATE_DEFAULT))
+			return -ENODEV;
+	}
+#endif	/* CONFIG_ARCH_EMXX */
+
 	/* set up data structures for the wakeup system */
 	init_completion(&urb_done);
 

@@ -102,6 +102,11 @@ struct mmc_host *mmc_alloc_host(int extra, struct device *dev)
 	host->max_blk_size = 512;
 	host->max_blk_count = PAGE_CACHE_SIZE / 512;
 
+#ifdef CONFIG_ARCH_EMXX
+	host->card_num = 1;
+	host->select = 0xffffffff;
+#endif
+
 	return host;
 
 free:

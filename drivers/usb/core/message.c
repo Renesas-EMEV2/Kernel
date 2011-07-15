@@ -76,6 +76,39 @@ out:
 	return retval;
 }
 
+#ifdef CONFIG_ARCH_EMXX
+static int usb_check_device_status(struct usb_device *usb_dev)
+{
+	int		retv = 0;
+	struct usb_port_status data;
+	struct usb_device	*udev = NULL;
+
+	udev = usb_dev;
+	if (udev->parent) {
+		int		i;
+
+		for (i = 0; i < MAX_TOPO_LEVEL; i++) {
+			udev = udev->parent;
+
+			if (udev->parent == NULL)
+				break;
+		}
+
+		retv = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
+			USB_REQ_GET_STATUS, USB_DIR_IN | USB_RT_PORT, 0, 1,
+			&data, sizeof(data), 5);
+
+		if (retv > 0) {
+			if ((data.wPortStatus & USB_PORT_STAT_CONNECTION) == 0) {
+				retv = -ENOTCONN;
+			}
+		}
+	}
+
+	return retv;
+}
+#endif	/* CONFIG_ARCH_EMXX */
+
 /*-------------------------------------------------------------------*/
 /* returns status (negative) or length (positive) */
 static int usb_internal_control_msg(struct usb_device *usb_dev,
@@ -95,9 +128,15 @@ static int usb_internal_control_msg(struct usb_device *usb_dev,
 			     len, usb_api_blocking_completion, NULL);
 
 	retv = usb_start_wait_urb(urb, timeout, &length);
-	if (retv < 0)
+	if (retv < 0) {
+#ifdef CONFIG_ARCH_EMXX
+		int nret;
+		nret = usb_check_device_status(usb_dev);
+		if (nret < 0)
+			retv = nret;
+#endif	/* CONFIG_ARCH_EMXX */
 		return retv;
-	else
+	} else
 		return length;
 }
 
@@ -135,6 +174,12 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request,
 {
 	struct usb_ctrlrequest *dr;
 	int ret;
+
+#ifdef CONFIG_ARCH_EMXX
+	ret = usb_check_device_status(dev);
+	if (ret < 0)
+		return ret;
+#endif	/* CONFIG_ARCH_EMXX */
 
 	dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
 	if (!dr)
