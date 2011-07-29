@@ -215,9 +215,14 @@
 #define EMXX_MMC_SMU_DIV5	(SMU_PLLSEL_PLL3 | SMU_DIV(5)) /* 46MHz */
 #define EMXX_MMC_SMU_DIV6	(SMU_PLLSEL_PLL3 | SMU_DIV(6)) /* 38MHz */
 
+#ifdef CONFIG_MACH_EMEV
 #define EMXX_CHG_SDIO0_CKO	(1 << (50-32))	/* SDIO0_CKO -> GIO P50 */
 #define EMXX_CHG_SDIO1_CKO	(1 << (61-32))	/* SDIO1_CKO -> GIO P61 */
 #define EMXX_CHG_SDIO2_CKO	(1 << (97-96))	/* SDIO2_CKO -> GIO P97 */
+#else	/* CONFIG_MACH_EMGR */
+#define EMXX_CHG_SDIO0_CKO	(1 << (76-64))	/* SDIO0_CKO -> GIO P76 */
+#define EMXX_CHG_SDIO1_CKO	(1 << (83-64))	/* SDIO1_CKO -> GIO P83 */
+#endif
 
 #define EMXX_MAX_SEGS		128
 
@@ -226,7 +231,7 @@
 
 /* Private structure */
 struct emxx_mmc_host {
-	u32 	base;
+	u32	base;
 	int	pdev_id;
 	int	irq;
 	int	detect_irq;

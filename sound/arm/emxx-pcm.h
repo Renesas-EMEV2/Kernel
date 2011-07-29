@@ -1,10 +1,10 @@
 /*
  * File Name		: sound/arm/emxx-pcm.h
  * Function		: PCM
- * Release Version 	: Ver 1.05
- * Release Date		: 2010/10/05
+ * Release Version 	: Ver 1.09
+ * Release Date		: 2011/06/30
  *
- * Copyright (C) 2010 Renesas Electronics Corporation
+ * Copyright (C) 2010-2011 Renesas Electronics Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2
@@ -102,6 +102,10 @@ struct audio_stream {
 	unsigned int old_offset;
 	spinlock_t dma_lock;    /* for locking in DMA operations
 				   (see dma-sa1100.c in the kernel) */
+	snd_pcm_uframes_t output_ptr;
+	snd_pcm_uframes_t chk_appl_ptr;
+	int last_flag;
+	int wrap_flag;
 
 	struct snd_pcm_substream *stream;
 };

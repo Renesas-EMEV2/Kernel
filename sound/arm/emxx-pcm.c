@@ -1,10 +1,10 @@
 /*
  *  File Name		: sound/arm/emxx-pcm.c
  *  Function		: PCM
- *  Release Version 	: Ver 1.08
- *  Release Date	: 2010/10/12
+ *  Release Version     : Ver 1.09
+ *  Release Date	: 2011/06/30
  *
- *  Copyright (c) 2010 Renesas Electronics Corporation
+ *  Copyright (c) 2010-2011 Renesas Electronics Corporation
  *
  *  This program is free software;you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by Free
@@ -223,11 +223,6 @@ static int emxx_pcm_hwdep_ioctl(struct snd_hwdep *hw, struct file *file,
 				 unsigned int cmd, unsigned long arg);
 static int emxx_pcm_hwdep_release(struct snd_hwdep *hw, struct file *file);
 
-static snd_pcm_uframes_t output_ptr;
-static snd_pcm_uframes_t chk_appl_ptr;
-static int last_flag;
-static int wrap_flag;
-
 /* PDMA Source */
 #ifdef EMXX_PCM_USE_PDMA
 
@@ -402,10 +397,10 @@ static int audio_dma_request(struct audio_stream *s,
 	int ret;
 	FNC_ENTRY
 
-	output_ptr = 0;
-	wrap_flag = 0;
-	last_flag = 0;
-	chk_appl_ptr = 0;
+	s->output_ptr = 0;
+	s->wrap_flag = 0;
+	s->last_flag = 0;
+	s->chk_appl_ptr = 0;
 
 #ifdef EMXX_PCM_USE_PDMA
 	if (PCM0_TX(s))
@@ -449,7 +444,7 @@ static u_int audio_get_dma_pos(struct audio_stream *s)
 	dma_addr_t addr;
 	FNC_ENTRY
 
-	if (last_flag) {
+	if (s->last_flag) {
 		offset = frames_to_bytes(
 			 runtime, runtime->period_size) * s->period;
 	} else {
@@ -501,8 +496,8 @@ static void audio_stop_dma(struct audio_stream *s)
 	 ((PCM_TX_EN == s->txrx_id) ? "TX" : "RX"), s->dma_ch,
 	 audio_get_dma_pos(s));
 
-	if (runtime->control->appl_ptr == output_ptr) {
-		if (runtime->control->appl_ptr != chk_appl_ptr)
+	if (runtime->control->appl_ptr == s->output_ptr) {
+		if (runtime->control->appl_ptr != s->chk_appl_ptr)
 			goto _Next;
 
 		loop_limit = (((frames_to_bytes(runtime, runtime->period_size)
@@ -535,9 +530,9 @@ _Next:;
 	spin_lock_irqsave(&s->dma_lock, flags);
 	s->active = 0;
 	s->period = 0;
-	output_ptr = 0;
-	wrap_flag = 0;
-	last_flag = 0;
+	s->output_ptr = 0;
+	s->wrap_flag = 0;
+	s->last_flag = 0;
 	/* this stops the dma channel and clears the buffer ptrs */
 #ifdef EMXX_PCM_USE_PDMA
 	if (PCM0_TX(s))
@@ -589,20 +584,20 @@ static void audio_process_dma(struct audio_stream *s)
 			 runtime->period_size);
 			s->add_period = 1;
 		} else {
-			if (runtime->control->appl_ptr < output_ptr) {
+			if (runtime->control->appl_ptr < s->output_ptr) {
 				/* boundary over */
 				/*  output_ptr modify is after pcm output. */
-				dma_size = runtime->boundary - output_ptr;
+				dma_size = runtime->boundary - s->output_ptr;
 				dma_size += runtime->control->appl_ptr;
 			} else {
-				if (((output_ptr != 0) || wrap_flag) &&
-				 (output_ptr == runtime->control->appl_ptr)) {
+				if (((s->output_ptr != 0) || s->wrap_flag) &&
+				 (s->output_ptr == runtime->control->appl_ptr)) {
 					/* new data not yet transfered
 					 from user area. or data finished. */
 					return;
 				}
 				dma_size = runtime->control->appl_ptr
-				 - output_ptr;
+				 - s->output_ptr;
 			}
 
 #ifdef EMXX_PCM_PACK_PELIOD
@@ -784,11 +779,11 @@ static void audio_process_dma(struct audio_stream *s)
 				 true_dma_size);
 			}
 			if (PCM0_TX(s) || PCM1_TX(s)) {
-				output_ptr += bytes_to_frames(runtime,
+				s->output_ptr += bytes_to_frames(runtime,
 				 dma_size);
-				if (output_ptr >= runtime->boundary) {
-					output_ptr -= runtime->boundary;
-					wrap_flag = 1;
+				if (s->output_ptr >= runtime->boundary) {
+					s->output_ptr -= runtime->boundary;
+					s->wrap_flag = 1;
 				}
 			}
 
@@ -874,7 +869,7 @@ static int pcm_output_silence(struct audio_stream *s)
 		printk(KERN_ERR ERRMSG_CANNOT_QUEUE2);
 		return -EBUSY;
 	}
-	last_flag = 1;
+	s->last_flag = 1;
 
 	return ret;
 }
@@ -888,7 +883,7 @@ static void audio_dma_callback(void *data, int intsts, int intrawsts)
 	FNC_ENTRY
 
 	if (PCM0_TX(s) || PCM1_TX(s)) {
-		if (runtime->control->appl_ptr == output_ptr)
+		if (runtime->control->appl_ptr == s->output_ptr)
 			out_flag = 1;
 	}
 
@@ -909,8 +904,8 @@ static void audio_dma_callback(void *data, int intsts, int intrawsts)
 	if (PCM0_TX(s) || PCM1_TX(s)) {
 		if ((s->active != 0) &&
 			 ((out_flag == 1)
-			  || (runtime->control->appl_ptr == output_ptr))) {
-			chk_appl_ptr = runtime->control->appl_ptr;
+			  || (runtime->control->appl_ptr == s->output_ptr))) {
+			s->chk_appl_ptr = runtime->control->appl_ptr;
 			pcm_output_silence(s);
 		} else
 			audio_process_dma(s);
@@ -931,7 +926,7 @@ static irqreturn_t audio_pdma_callback(int irq, void *data)
 	FNC_ENTRY
 
 	if (PCM0_TX(s) || PCM1_TX(s)) {
-		if (runtime->control->appl_ptr == output_ptr)
+		if (runtime->control->appl_ptr == s->output_ptr)
 			out_flag = 1;
 	}
 
@@ -945,7 +940,7 @@ static irqreturn_t audio_pdma_callback(int irq, void *data)
 		d3b("pos : %d\n", audio_get_dma_pos(s));
 	}
 
-	if (output_ptr != runtime->control->appl_ptr) {
+	if (s->output_ptr != runtime->control->appl_ptr) {
 		if (!s->tx_spin && s->periods > 0)
 			s->periods -= s->add_period;
 		audio_process_dma(s);
@@ -954,8 +949,8 @@ static irqreturn_t audio_pdma_callback(int irq, void *data)
 	if (PCM0_TX(s) || PCM1_TX(s)) {
 		if ((s->active != 0) &&
 			 ((out_flag == 1)
-			  || (runtime->control->appl_ptr == output_ptr))) {
-			chk_appl_ptr = runtime->control->appl_ptr;
+			  || (runtime->control->appl_ptr == s->output_ptr))) {
+			s->chk_appl_ptr = runtime->control->appl_ptr;
 			pcm_output_silence(s);
 		}
 	}
@@ -1284,18 +1279,24 @@ static int emxx_pcm_prepare(struct snd_pcm_substream *substream)
 static snd_pcm_uframes_t emxx_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct emxx_pcm_client *chip = snd_pcm_substream_chip(substream);
+#ifdef EMXX_PCM_USE_PDMA
 	struct audio_stream *s = chip->s[substream->pstr->stream];
 	struct snd_pcm_runtime *runtime = substream->runtime;
+#endif
 	snd_pcm_uframes_t ret;
 	FNC_ENTRY
 
-	spin_lock(&s->dma_lock);
-	if (output_ptr != runtime->control->appl_ptr) {
-		if (!s->tx_spin && s->periods > 0)
-			s->periods -= s->add_period;
-		audio_process_dma(s);
+#ifdef EMXX_PCM_USE_PDMA
+	if (PCM0_TX(s)) {
+		spin_lock(&s->dma_lock);
+		if (s->output_ptr != runtime->control->appl_ptr) {
+			if (!s->tx_spin && s->periods > 0)
+				s->periods -= s->add_period;
+			audio_process_dma(s);
+		}
+		spin_unlock(&s->dma_lock);
 	}
-	spin_unlock(&s->dma_lock);
+#endif
 
 	ret = audio_get_dma_pos(chip->s[substream->pstr->stream]);
 	FNC_EXIT return ret;

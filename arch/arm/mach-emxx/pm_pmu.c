@@ -2,8 +2,8 @@
 /*
  *  File Name	    : linux/arch/arm/mach-emxx/pm_pmu.c
  *  Function	    : pm_pmu
- *  Release Version : Ver 1.22
- *  Release Date    : 2011/07/14
+ *  Release Version : Ver 1.23
+ *  Release Date    : 2011/07/28
  *
  * Copyright (C) 2010-2011 Renesas Electronics Corporation
  *
@@ -1734,6 +1734,8 @@ int __init emxx_pmu_init(void)
 	writel(0xffffffff, PMU_SLEEPFLAG);
 	writel(0xffffffff, PMU_LOWPOWERFLAG);
 	writel(0xffffffff, PMU_IDLEFLAG);
+	writel(0xffffffff, PMU_EHCI_IDLEFLAG);
+	writel(0xffffffff, PMU_OHCI_IDLEFLAG);
 
 	return 0;
 }
