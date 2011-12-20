@@ -27,7 +27,7 @@ INITRD_PHYS := $(initrd_phys-y)
 
 export ZRELADDR INITRD_PHYS PARAMS_PHYS
 
-targets := Image zImage xipImage bootpImage uImage
+targets := Image zImage xipImage bootpImage uImage4
 
 ifeq ($(CONFIG_XIP_KERNEL),y)
 
@@ -65,19 +65,19 @@ quiet_cmd_uimage = UIMAGE  $@
 		   -n 'Linux-$(KERNELRELEASE)' -d $< $@
 
 ifeq ($(CONFIG_ZBOOT_ROM),y)
-$(obj)/uImage: LOADADDR=$(CONFIG_ZBOOT_ROM_TEXT)
+$(obj)/uImage4: LOADADDR=$(CONFIG_ZBOOT_ROM_TEXT)
 else
-$(obj)/uImage: LOADADDR=$(ZRELADDR)
+$(obj)/uImage4: LOADADDR=$(ZRELADDR)
 endif
 
 ifeq ($(CONFIG_THUMB2_KERNEL),y)
 # Set bit 0 to 1 so that "mov pc, rx" switches to Thumb-2 mode
-$(obj)/uImage: STARTADDR=$(shell echo $(LOADADDR) | sed -e "s/.$$/1/")
+$(obj)/uImage4: STARTADDR=$(shell echo $(LOADADDR) | sed -e "s/.$$/1/")
 else
-$(obj)/uImage: STARTADDR=$(LOADADDR)
+$(obj)/uImage4: STARTADDR=$(LOADADDR)
 endif
 
-$(obj)/uImage:	$(obj)/Image FORCE
+$(obj)/uImage4:	$(obj)/Image FORCE
 	$(call if_changed,uimage)
 	@echo '  Image $@ is ready'
 
