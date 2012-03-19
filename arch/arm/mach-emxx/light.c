@@ -28,6 +28,7 @@
 
 #include <linux/gpio.h>
 #include <mach/pwc.h>
+#include "pwm.h"
 
 #define DEFAULT_BACKLIGHT_BRIGHTNESS 255
 #define HW_MAX_BRIGHTNESS 95
@@ -35,18 +36,19 @@
 
 /*******************************/
 /* LCD BackLight */
-static void
+void
 emxx_brightness_set(struct led_classdev *led_cdev, enum led_brightness value)
 {
-	int hw_val = (value * HW_MAX_BRIGHTNESS) / 255;
+	if(value>255) value = 255;
+	if(value<1) value = 1;
 
-	if (hw_val < HW_MIN_BRIGHTNESS)
-		hw_val = HW_MIN_BRIGHTNESS;
-	if (hw_val > HW_MAX_BRIGHTNESS)
-		hw_val = HW_MAX_BRIGHTNESS;
-	pwc_reg_write(DA9052_LED1CONT_REG, hw_val);
-	pwc_reg_write(DA9052_LED2CONT_REG, hw_val);
+	writel(0x10,PWM_CH0_CTRL);
+	writel(value,PWM_CH0_LEDGE0);
+	writel(0xFF,PWM_CH0_TEDGE0);
+	writel(0xFF,PWM_CH0_TOTAL0);
+	writel(0x11,PWM_CH0_CTRL);
 }
+EXPORT_SYMBOL( emxx_brightness_set );
 
 static struct led_classdev emxx_backlight_led = {
 	.name = "lcd-backlight",
@@ -81,18 +83,49 @@ static struct platform_device emxx_leds = {
 	},
 };
 
+static void emxx_light_gpio_configure(void)
+{
+	int value;
+	value = readl(CHG_PINSEL_G096);
+	value &= 0xFFEFFFFF;
+	writel(value, CHG_PINSEL_G096);
+
+	value = readl(CHG_PINSEL_G128);
+	value |= 0x400000;
+	writel(value , CHG_PINSEL_G128);
+
+	value = readl(CHG_PINSEL_G096);
+	value |= 0x100; 
+	writel(value, CHG_PINSEL_G096);
+
+	value = readl(CHG_PULL11);
+	value = (value&0xFFF0FFFF)|0x50000;
+	writel(value, CHG_PULL11);
+
+	value = readl(CHG_PINSEL_G096) ;
+	value |= 0x88;
+	writel(value,CHG_PINSEL_G096);
+
+	gpio_direction_output(150,1);
+}
 /*******************************/
 static int emxx_light_probe(struct platform_device *pdev)
 {
 	/* Init LCD Backlight */
-	pwc_reg_write(DA9052_LED1CONF_REG, 0xEA);  /* LCD panel max electric
-						      current 15mA, set
-						      14.986mA */
-	pwc_reg_write(DA9052_LED1CONT_REG, 0xDF);
-	pwc_reg_write(DA9052_LED2CONF_REG, 0xEA);  /* LCD panel max electric
-						      current 15mA, set
-						      14.986mA */
-	pwc_reg_write(DA9052_LED2CONT_REG, 0xDF);
+	writel(PWM_INIT_CLOCK, SMU_PWMPWCLKDIV);
+	emxx_open_clockgate(EMXX_CLK_PWM0);
+	emxx_open_clockgate(EMXX_CLK_PWM_P);
+	emxx_reset_device(EMXX_RST_PWM);
+	mdelay(1);
+	emxx_unreset_device(EMXX_RST_PWM);
+
+	emxx_light_gpio_configure();
+
+	//Setup PWM registers
+	writel(0x00,PWM_CH0_DELAY0);
+	writel(0x01,PWM_CH0_LOOP0);
+	writel(0x10,PWM_CH0_CTRL);
+	writel(0x01,PWM_CH0_MODE);
 	led_classdev_register(&pdev->dev, &emxx_backlight_led);
 
 	/* Init LED */
@@ -103,6 +136,9 @@ static int emxx_light_probe(struct platform_device *pdev)
 
 static int emxx_light_remove(struct platform_device *pdev)
 {
+	emxx_close_clockgate(EMXX_CLK_PWM0);
+	emxx_close_clockgate(EMXX_CLK_PWM_P);
+	emxx_reset_device(EMXX_RST_PWM);
 	led_classdev_unregister(&emxx_backlight_led);
 
 	platform_device_unregister(&emxx_leds);

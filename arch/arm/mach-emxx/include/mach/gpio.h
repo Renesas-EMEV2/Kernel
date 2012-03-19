@@ -362,6 +362,9 @@
 #define GPIO_SDI1_WP	GPIO_EXT1_P26	/* in  */
 #define GPIO_SDI2_WP	GPIO_EXT1_P27	/* in  */
 
+#define SCREEN_RST 	GPIO_P103
+#define SCREEN_DISP	GPIO_P99
+#define SCREEN_POERON	GPIO_P150
 
 static inline int __gpio_set_direction(unsigned gpio, int is_input)
 {

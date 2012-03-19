@@ -30,12 +30,12 @@
  *******************************************************/
 #define HAREA_LCD		FRONT_WIDTH_LCD
 #define HPULSE_LCD		1
-#define HFRONTP_LCD		6
-#define HBACKP_LCD		4
+#define HFRONTP_LCD		210
+#define HBACKP_LCD		46
 #define VAREA_LCD		FRONT_HEIGHT_LCD
 #define VPULSE_LCD		1
-#define VFRONTP_LCD		1
-#define VBACKP_LCD		6
+#define VFRONTP_LCD		22
+#define VBACKP_LCD		23
 
 #define HAREA_1080I		FRONT_WIDTH_1080I
 #define HPULSE_1080I		44

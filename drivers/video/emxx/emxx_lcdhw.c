@@ -487,6 +487,7 @@ static void         *imc_hw_init_reserve_l2a(struct l2_param *param_l2a);
 static void         *imc_hw_init_reserve_l2b(struct l2_param *param_l2b);
 static void         *imc_hw_init_reserve_bg(struct bg_param *param_bg);
 
+extern void emxx_brightness_set(void *led_cdev, int value);
 
 /* ------------------ inline function -------------------------------------- */
 inline void chk_errno(int errno, char **cnum)
@@ -1029,7 +1030,7 @@ static inline void change_pinsel_wvga(void)
 	/********************************/
 	printk_dbg(_DEBUG_LCDHW,
 	 "SMU_LCDLCLKDIV = 0x%08x\n", readl(SMU_LCDLCLKDIV));
-	writel(0x00000009, SMU_LCDLCLKDIV); /* 229.376Mhz / 10 = 22.938Mhz */
+	writel(0x00000006, SMU_LCDLCLKDIV); /* 229.376Mhz / 10 = 22.938Mhz */
 
 #ifdef CONFIG_MACH_EMEV
 	/* select the GPIO pin functions GIO_P18 - GIO_P23, GIO_P32 - GIO_P43 */
@@ -1399,18 +1400,7 @@ int lcd_module_hw_power_on(void)
 {
 	int iRet = 0, i;
 	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
-
-	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
-		for (i = 0; i < LCDM_SPI_CMD_POWERON; i++) {
-			iRet = lcd_module_hw_spiw(lcdm_spi_cmd_poweron[i][0],
-			 lcdm_spi_cmd_poweron[i][1]);
-			if (iRet < 0) {
-				printk_err("LCD Module power on failed!\n");
-				return iRet;
-			}
-		}
-		udelay(20);
-	}
+	emxx_brightness_set(NULL, 255);
 	return iRet;
 }
 

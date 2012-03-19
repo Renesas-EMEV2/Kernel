@@ -47,6 +47,7 @@
 #include <mach/hardware.h>
 #include <mach/smu.h>
 #include <mach/emxx_mem.h>
+#include <mach/gpio.h>
 #ifdef CONFIG_EMXX_PWC
 #include <mach/pwc.h>
 #endif
@@ -432,6 +433,11 @@ static void __init emev_board_init(void)
 		pwc_init_data = pwc_board_init_data;
 	}
 #endif
+/*Setup LCD*/
+	gpio_direction_output(SCREEN_RST , 1);
+	writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
+	gpio_direction_output(SCREEN_DISP , 1);
+	gpio_direction_output(SCREEN_POERON, 1);
 }
 
 MACHINE_START(EMXX, "EMXX")
