@@ -1,0 +1,36 @@
+
+Created a "RenesasEV2-BSPGB-Kernel" repository on ffxx68 GitHub account
+
+-----------------------------------------------------------------------
+
+How to build a Kernel (tested on Ubuntu 11.10)
+
+1) Download the Android NDK from http://developer.android.com/sdk/ndk/index.html
+
+2) Then do the following
+
+ export ARCH=arm
+ export PATH=<path-to-Android-NDK-bin>:$PATH
+ export CROSS_COMPILE=arm-linux-androideabi-
+ make emev_mypad_defconfig
+ make
+...
+(took about 10 minutes, on my 2x2.4GHz CPU, 4Gb RAM)
+...
+Image Name:   Linux-2.6.35.7
+Created:      Mon Mar 19 11:34:21 2012
+Image Type:   ARM Linux Kernel Image (uncompressed)
+Data Size:    4416480 Bytes = 4312.97 kB = 4.21 MB
+Load Address: 40008000
+Entry Point:  40008000
+  Image arch/arm/boot/uImage is ready
+  CC      drivers/scsi/scsi_wait_scan.mod.o
+  CC      sound/arm/snd-emxx-spdif.mod.o
+  LD [M]  arch/arm/mach-emxx/inter_dsp.ko
+  LD [M]  arch/arm/mach-emxx/pwm.ko
+  LD [M]  drivers/ave/em_ave.ko
+  LD [M]  drivers/scsi/scsi_wait_scan.ko
+  LD [M]  sound/arm/snd-emxx-spdif.ko
+
+
+
