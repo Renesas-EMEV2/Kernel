@@ -610,7 +610,13 @@ config TOUCHSCREEN_TPS6507X
 	  module will be called tps6507x_ts.
 
 config TOUCHSCREEN_DA9052
+	default n
 	bool "DA9052 touch input driver"
 	depends on ARCH_EMXX && EMXX_PWC
+
+config TOUCHSCREEN_I2C_PIXCIR
+	default y
+	bool "PIXCIR TP"
+	depends on I2C
 
 endif

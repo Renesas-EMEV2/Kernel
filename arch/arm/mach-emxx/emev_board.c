@@ -307,29 +307,6 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_RTC_NAME,    I2C_SLAVE_RTC_ADDR),
 	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_EXTIO1_NAME, I2C_SLAVE_EXTIO1_ADDR),
-	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_EXTIO2_NAME, I2C_SLAVE_EXTIO2_ADDR),
-	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_HDMI_NAME,   I2C_SLAVE_HDMI_ADDR),
-	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_CODEC_NAME,  I2C_SLAVE_CODEC_ADDR),
-	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_SPDIF_NAME,  I2C_SLAVE_SPDIF_ADDR),
-	},
-#if defined(CONFIG_EMXX_NTS) || defined(CONFIG_EMXX_NTS_MODULE)
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_NTSC_ENC_NAME, I2C_SLAVE_NTSC_ENC_ADDR),
-	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_NTSC_DEC_NAME, I2C_SLAVE_NTSC_DEC_ADDR),
-	},
-#endif
 #if defined(CONFIG_VIDEO_EMXX_CAMERA) || \
 		defined(CONFIG_VIDEO_EMXX_CAMERA_MODULE)
 	{
@@ -339,6 +316,10 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO(I2C_SLAVE_CAM_AF_NAME, I2C_SLAVE_CAM_AF_ADDR),
 	},
 #endif
+	{
+	  I2C_BOARD_INFO("pixcir", 0x5c),
+	  .irq = INT_GPIO_29,
+	},
 };
 
 static void __init emev_board_map_io(void)
@@ -434,10 +415,24 @@ static void __init emev_board_init(void)
 	}
 #endif
 /*Setup LCD*/
-	gpio_direction_output(SCREEN_RST , 1);
-	writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
-	gpio_direction_output(SCREEN_DISP , 1);
-	gpio_direction_output(SCREEN_POERON, 1);
+	{
+		int val;
+		gpio_direction_output(SCREEN_RST , 1);
+		writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
+		gpio_direction_output(SCREEN_DISP , 1);
+		gpio_direction_output(SCREEN_POERON, 1);
+
+		val = readl(CHG_PINSEL_G128);
+		writel(val|0x8000, CHG_PINSEL_G128);
+		val=readl(CHG_PINSEL_G000);
+		writel(val|(0x1f << 13) | (0x1 << 26), CHG_PINSEL_G000);
+		val=readl(CHG_PULL21);
+		writel(val|0x00000005, CHG_PULL21);
+		val=readl(CHG_PULL14);
+		writel(val|0x55555000, CHG_PULL14);
+		val=readl(CHG_PULL1) ;
+		writel(val| 0x00000005, CHG_PULL1);
+	}
 }
 
 MACHINE_START(EMXX, "EMXX")
