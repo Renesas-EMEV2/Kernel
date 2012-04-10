@@ -430,4 +430,15 @@ config KEYBOARD_EMXX_MAX7318
 	bool "EMMA Mobile series MAX7318 button support"
 	depends on ARCH_EMXX && INPUT_KEYBOARD && I2C
 
+config EKT2010_KEYSC
+	tristate "EKT2010_KEYSC"
+	default y
+	help
+	  Say Y here if you want to use a keypad attached to the KEYSC block
+	  on SuperH processors such as sh7722 and sh7343.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sh_keysc.
+
 endif
+

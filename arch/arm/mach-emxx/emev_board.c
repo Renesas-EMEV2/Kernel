@@ -320,6 +320,10 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO("pixcir", 0x5c),
 	  .irq = INT_GPIO_29,
 	},
+	{
+	  I2C_BOARD_INFO("ekt2201", 0x10),
+	  .irq = INT_GPIO_102,
+	},
 };
 
 static void __init emev_board_map_io(void)
