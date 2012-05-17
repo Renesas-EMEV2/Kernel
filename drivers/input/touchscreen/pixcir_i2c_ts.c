@@ -32,7 +32,7 @@
 #define DRIVER_DESC "Pixcir I2C Touchscreen Driver"
 #define DRIVER_LICENSE "GPL"
 
-//#define DEBUG 1
+#define DEBUG 1
 #define	printk(x...) printk("emxx_ts:" x)
 
 #define TOUCHSCREEN_MINX 0
@@ -79,7 +79,7 @@ static void pixcir_reset(int delayMS)
 static inline void emxx_ts_connect(void)
 {
 #ifdef DEBUG
-	printk("set gpio\n");
+	printk("emxx_ts_connect - set gpio\n");
 #endif
 	pixcir_reset(300);
 
@@ -123,7 +123,7 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	ret = i2c_master_send(tsdata->client, Wrbuf, 1);
 
 	#ifdef DEBUG
-		printk("master send ret:%d\n",ret);
+	printk("master send ret:%d\n",ret);
 	#endif
 
 	if(ret!=1){
@@ -134,7 +134,7 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	ret = i2c_master_recv(tsdata->client,Rdbuf,sizeof(Rdbuf));
 
 	#ifdef DEBUG
-		printk("master recv ret:%d\n",ret);
+	printk("master recv ret:%d\n",ret);
 	#endif
 
 	if(ret!=sizeof(Rdbuf)){
@@ -153,7 +153,10 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	posx2 = TOUCHSCREEN_MAXX - posx2;
 
 	#ifdef DEBUG
-		printk("touching:%-3d,oldtouching:%-3d,x1:%-6d,y1:%-6d,x2:%-6d,y2:%-6d\n",touching,oldtouching,posx1,posy1,posx2,posy2);
+	printk("touching:%-3d,oldtouching:%-3d,x1:%-6d,y1:%-6d,"
+         "x2:%-6d,y2:%-6d\n",
+         touching,oldtouching,posx1,posy1,
+         posx2,posy2);
 	#endif
 
 	input_report_key(tsdata->input, BTN_TOUCH, (touching!=0?1:0));
@@ -213,9 +216,9 @@ static void pixcir_ts_close(struct input_dev *dev)
 static int pixcir_i2c_ts_probe(struct i2c_client *client,
 			  const struct i2c_device_id *id)
 {
-	#ifdef DEBUG	
-		printk("pixcir_i2c_ts_probe\n");
-	#endif
+#ifdef DEBUG	
+	printk("pixcir_i2c_ts_probe\n");
+#endif
 
 	struct pixcir_i2c_ts_data *tsdata;
 	struct input_dev *input;
@@ -374,11 +377,14 @@ static int __init pixcir_i2c_ts_init(void)
 	#ifdef DEBUG
 		printk("pixcir_i2c_init\n");
 	#endif
+	int ret = 0;
 
 	pixcir_wq = create_singlethread_workqueue("pixcir_wq");
 	if(!pixcir_wq)
 		return -ENOMEM;
-	return i2c_add_driver(&pixcir_i2c_ts_driver);
+	ret = i2c_add_driver(&pixcir_i2c_ts_driver);
+	printk("pixcir:i2c_add_driver %d \n",ret);
+	return ret;
 }
 
 static void __exit pixcir_i2c_ts_exit(void)

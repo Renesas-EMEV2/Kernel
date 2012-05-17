@@ -154,10 +154,18 @@ static struct platform_device da9052_ts_device = {
 	.id	= -1,
 };
 
+#if defined(CONFIG_KEYBOARD_EMXX_MAX7318)	
 static struct platform_device max7318_key_device = {
 	.name	= "max7318_key",
 	.id	= -1,
 };
+#endif
+#if defined(CONFIG_KEYBOARD_GPIO)
+static struct platform_device gpio_key_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+};
+#endif
 
 /* Light */
 static struct platform_device emxx_light_device = {
@@ -289,7 +297,12 @@ static struct platform_device *devs[] __initdata = {
 	&dm9000_device,
 #endif
 	&da9052_ts_device,
+#if defined(CONFIG_KEYBOARD_EMXX_MAX7318)
 	&max7318_key_device,
+#endif
+#if defined(CONFIG_KEYBOARD_GPIO)	
+  	&gpio_key_device,
+#endif
 	&emxx_light_device,
 	&emxx_battery_device,
 	&emxx_nand_device,
@@ -316,14 +329,18 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO(I2C_SLAVE_CAM_AF_NAME, I2C_SLAVE_CAM_AF_ADDR),
 	},
 #endif
+#if defined(CONFIG_TOUCHSCREEN_I2C_PIXCIR)
 	{
 	  I2C_BOARD_INFO("pixcir", 0x5c),
 	  .irq = INT_GPIO_29,
 	},
+#endif
+#if defined(CONFIG_EKT2010_KEYSC)
 	{
 	  I2C_BOARD_INFO("ekt2201", 0x10),
 	  .irq = INT_GPIO_102,
 	},
+#endif
 };
 
 static void __init emev_board_map_io(void)

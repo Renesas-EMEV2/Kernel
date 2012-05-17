@@ -343,7 +343,7 @@ static void ekt2201_ts_poscheck(struct work_struct *work)
 	else if(keyval==2)     	keycode=KEY_HOME;
 	else 			keycode=0;
 
-	if(keycode != 0){ //有按键
+	if(keycode != 0){ //\D3邪\B4\BC\FC
 		if(PrevTouchKeyCode == 0){ //3 first down
 			PrevTouchKeyCode=keycode;
 			input_report_key(tsdata->input,keycode,1);
@@ -367,7 +367,7 @@ static void ekt2201_ts_poscheck(struct work_struct *work)
 #endif
 			}
 		}
-	}else{//无按键
+	}else{//\CE薨\B4\BC\FC
 		if(PrevTouchKeyCode!=0){
 			input_report_key(tsdata->input,PrevTouchKeyCode,0);//3 key up
 			input_sync(tsdata->input);
@@ -867,8 +867,8 @@ static int __init ekt2201_i2c_ts_init(void)
 	/********************************V2.0-Bee-0928-BOTTOM******************************************/
 #endif
 
-	ret= i2c_add_driver(&ekt2201_i2c_ts_driver);
-	printk(KERN_ERR "ekt2201:i2c_add_driver %d \n",ret);
+	ret = i2c_add_driver(&ekt2201_i2c_ts_driver);
+	printk("ekt2201:i2c_add_driver %d \n",ret);
 
 	return ret;
 }
