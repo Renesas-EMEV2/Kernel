@@ -321,7 +321,7 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO(I2C_SLAVE_RTC_NAME,    I2C_SLAVE_RTC_ADDR),
 	},
 #if defined(CONFIG_VIDEO_EMXX_CAMERA) || \
-		defined(CONFIG_VIDEO_EMXX_CAMERA_MODULE)
+    defined(CONFIG_VIDEO_EMXX_CAMERA_MODULE)
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_CAM_NAME,    I2C_SLAVE_CAM_ADDR),
 	},
@@ -334,6 +334,12 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO("pixcir", 0x5c),
 	  .irq = INT_GPIO_29,
 	},
+#endif
+#if defined(CONFIG_TOUCHSCREEN_GOODIX)
+	{
+	   I2C_BOARD_INFO("goodix_ts", 0x55),
+	   .irq= INT_GPIO_29,
+ 	},
 #endif
 #if defined(CONFIG_EKT2010_KEYSC)
 	{

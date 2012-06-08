@@ -614,9 +614,18 @@ config TOUCHSCREEN_DA9052
 	bool "DA9052 touch input driver"
 	depends on ARCH_EMXX && EMXX_PWC
 
+config TOUCHSCREEN_GOODIX
+	default y
+	bool "GOODIX I2C touch screen"
+	depends on ARCH_EMXX
+	help
+	  enable GOODIX I2C touchscreen
+
 config TOUCHSCREEN_I2C_PIXCIR
 	default y
 	bool "PIXCIR TP"
 	depends on I2C
+
+
 
 endif

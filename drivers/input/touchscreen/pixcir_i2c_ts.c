@@ -32,7 +32,7 @@
 #define DRIVER_DESC "Pixcir I2C Touchscreen Driver"
 #define DRIVER_LICENSE "GPL"
 
-#define DEBUG 1
+/* #define DEBUG 1 */
 #define	printk(x...) printk("emxx_ts:" x)
 
 #define TOUCHSCREEN_MINX 0
