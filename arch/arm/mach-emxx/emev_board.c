@@ -347,6 +347,9 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  .irq = INT_GPIO_102,
 	},
 #endif
+	{
+		I2C_BOARD_INFO("axp192",0x34),
+	},
 };
 
 static void __init emev_board_map_io(void)
@@ -397,6 +400,14 @@ static void __init emev_board_init(void)
 	writel(0xfff00000, l2cc_base + 0xc04);
 	writel(0xffe00001, l2cc_base + 0xc00);
 #endif
+
+	/*GPIO pin configuration*/
+	writel(readl(CHG_PINSEL_G128)|0x00008000, CHG_PINSEL_G128);
+	writel(readl(CHG_PINSEL_G000)|0x0403e000, CHG_PINSEL_G000);
+
+	writel((readl(CHG_PULL21)|0x00000005), CHG_PULL21);
+	writel((readl(CHG_PULL14)|0x55555000), CHG_PULL14);
+	writel((readl(CHG_PULL1)|0x00000005), CHG_PULL1);
 
 #ifdef CONFIG_EMXX_L310_8WAY
 	/* 8-way 32KB cache, Early BRESP */

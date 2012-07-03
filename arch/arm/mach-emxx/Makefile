@@ -29,3 +29,4 @@ obj-$(CONFIG_PM)		+= pm_pmu.o
 obj-$(CONFIG_SMP)		+= platsmp.o headsmp.o
 obj-$(CONFIG_HOTPLUG_CPU)	+= hotplug.o
 
+obj-$(CONFIG_EMXX_AXP192_PWC)	+= axp192.o
