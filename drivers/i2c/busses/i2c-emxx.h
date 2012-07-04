@@ -116,7 +116,7 @@ struct i2c_ctrl {
 #if CONFIG_I2C_EMXX_SMC0 == 1
 #define I2C_DIVIIC_VAL1	(SMU_DIV(25))
 #else
-#define I2C_DIVIIC_VAL1	(SMU_DIV(28))
+#define I2C_DIVIIC_VAL1	(SMU_DIV(31))
 #endif
 
 #ifdef CONFIG_I2C_EMXX_ENABLE_CH2
