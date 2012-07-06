@@ -5,7 +5,8 @@ struct gpio_keys_button {
 	/* Configuration parameters */
 	int code;		/* input event code (KEY_*, SW_*) */
 	int gpio;
-	int active_low;
+	int active_levl;
+	int prev_state;
 	char *desc;
 	int type;		/* input event type (EV_KEY, EV_SW) */
 	int wakeup;		/* configure the button as a wake-up source */
