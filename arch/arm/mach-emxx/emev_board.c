@@ -471,6 +471,9 @@ static void __init emev_board_init(void)
 		val=readl(CHG_PULL1) ;
 		writel(val| 0x00000005, CHG_PULL1);
 	}
+
+        /* enable PCI-E bus power (3G module) */
+        gpio_direction_output(GPIO_3G_EN, 0x01);
 }
 
 MACHINE_START(EMXX, "EMXX")

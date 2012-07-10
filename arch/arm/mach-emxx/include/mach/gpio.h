@@ -362,9 +362,25 @@
 #define GPIO_SDI1_WP	GPIO_EXT1_P26	/* in  */
 #define GPIO_SDI2_WP	GPIO_EXT1_P27	/* in  */
 
-#define SCREEN_RST 	GPIO_P103
-#define SCREEN_DISP	GPIO_P99
-#define SCREEN_POERON	GPIO_P150
+/* Specific to Livall tablet board */
+/* GPIO hardware buttons */
+#define GPIO_BUTT_VOLUMEDOWN  GPIO_P14
+#define GPIO_BUTT_VOLUMEUP    GPIO_P13
+#define GPIO_BUTT_POWER       GPIO_P143
+/* WiFi & BT control */
+#define GPIO_BCM_BT_RST       GPIO_P114
+#define GPIO_BCM_WLAN_BT_EN   GPIO_P115
+#define GPIO_BCM_WLAN_PDN     GPIO_P116
+#define GPIO_BCM_WLAN_RST     GPIO_P117
+#define GPIO_WIFI_WAKE        GPIO_P106
+/* 3G module control */
+#define GPIO_3G_RF_DISABLE_N  GPIO_P12
+#define GPIO_3G_RST_N         GPIO_P25
+#define GPIO_3G_EN            GPIO_P24
+/* LCD control */
+#define SCREEN_RST 	      GPIO_P103
+#define SCREEN_DISP	      GPIO_P99
+#define SCREEN_POERON	      GPIO_P150
 
 static inline int __gpio_set_direction(unsigned gpio, int is_input)
 {

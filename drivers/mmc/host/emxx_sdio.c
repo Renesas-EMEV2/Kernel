@@ -83,6 +83,34 @@
 #endif
 
 static struct emxx_mmc_host *g_host[3];
+static int mmc_initialised = 0;
+
+void emxx_sdio1_connect(void)
+{
+	struct emxx_mmc_host *host;
+	if(!mmc_initialised)
+		return;
+	host = g_host[1];
+	FUNC_PRINT("SDIO1 connected\n");
+	host->connect = 1;
+	mmc_detect_change(host->mmc, msecs_to_jiffies(100));
+	//mdelay(300);
+
+}
+EXPORT_SYMBOL(emxx_sdio1_connect);
+
+void emxx_sdio1_disconnect(void)
+{
+	struct emxx_mmc_host *host;
+	if(!mmc_initialised)
+		return;
+	host = g_host[1];
+	FUNC_PRINT("SDIO1 disconnected\n");
+	host->connect = 0;
+	host->mmc->select = 0xffffffff;
+	mmc_detect_change(host->mmc, msecs_to_jiffies(100));
+}
+EXPORT_SYMBOL(emxx_sdio1_disconnect);
 
 static void emxx_sdio_reset(struct emxx_mmc_host *host, u32 mask)
 {
