@@ -33,7 +33,7 @@
 #include <linux/suspend.h>
 #endif
 
-/* #define DEBUG */
+#define DEBUG /* remove at the end of testing */
 #ifdef DEBUG
 #define TAG "wifi_rfkill "
 #define debug_print(fmt, args...)	\
@@ -167,7 +167,7 @@ int emev_rfkill_set_power(void *data, enum rfkill_user_states state)
 			emev_wifi_poweroff(1);
 			break;
 		default:
-			printk(KERN_ERR "invalid  rfkill state %d\n", state);
+			printk(KERN_ERR "invalid rfkill state %d\n", state);
 	}
 	return 0;
 }
