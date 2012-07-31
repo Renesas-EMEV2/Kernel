@@ -878,9 +878,9 @@ emxx_sdio_probe(struct platform_device *pdev)
 	case 1:
 		host->base = EMXX_MMC_SDIO1_BASE;
 		host->irq = INT_SDIO1;
-		host->detect_gpio = GPIO_SDI1_CD;
-		host->detect_irq = INT_SDI1_CD;
-		host->wp_gpio = GPIO_SDI1_WP;
+		host->detect_gpio = 0;
+		host->detect_irq = 0;
+		host->wp_gpio = 0;
 		host->clk = EMXX_CLK_SDIO1_H | EMXX_CLK_SDIO1;
 		host->sclk = EMXX_CLK_SDIO1_S;
 		host->reset = EMXX_RST_SDIO1;
@@ -902,6 +902,8 @@ emxx_sdio_probe(struct platform_device *pdev)
 		host->base_clock = 46000000;
 #endif
 		host->pin_cko = EMXX_CHG_SDIO1_CKO;
+		mmc->card_num = 1;
+		mmc->f_max = 25000000;
 		break;
 #ifdef CONFIG_MACH_EMEV
 	case 2:
@@ -919,6 +921,7 @@ emxx_sdio_probe(struct platform_device *pdev)
 		host->pin_sel = CHG_PINSEL_G096;
 		host->pin_cko = EMXX_CHG_SDIO2_CKO;
 		host->base_clock = 76000000;
+		mmc->card_num = 1;
 		mmc->f_max = 10000000;
 		break;
 #endif
@@ -1012,6 +1015,7 @@ emxx_sdio_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, host);
 	mmc_add_host(mmc);
+ 	mmc_initialised = 1;
 
 	return 0;
 
@@ -1071,12 +1075,25 @@ void emxx_sdio_idle_suspend(void)
 }
 
 #ifdef CONFIG_PM
+volatile u32 SDIO_MODE_CMD_VALUE = 0;
+volatile u32 SDIO_CLK_TOUT_RST_VALUE = 0;
 static int
 emxx_sdio_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct emxx_mmc_host *host = platform_get_drvdata(pdev);
 	int ret = 0;
 
+ 	if(strcmp("mmc2", mmc_hostname(host->mmc)) == 0) {
+ 		MMC_CLK_ON;
+ 		SDIO_MODE_CMD_VALUE = readl(host->base + SDIO_MODE_CMD);
+ 		SDIO_CLK_TOUT_RST_VALUE = readl(host->base + SDIO_CLK_TOUT_RST);
+ 		MMC_CLK_OFF;
+ 		printk("EMXX SDIO: %s not suspend.\n", mmc_hostname(host->mmc));
+ 		return ret;
+ 	} else {
+ 		printk("EMXX SDIO: %s suspend.\n", mmc_hostname(host->mmc));
+ 	}
+ 
 	if (!host || host->suspended)
 		return 0;
 
@@ -1101,6 +1118,18 @@ emxx_sdio_resume(struct platform_device *pdev)
 	int ret = 0;
 	unsigned long flag;
 	u32 val;
+	
+	if(strcmp("mmc2", mmc_hostname(host->mmc)) == 0) {
+		MMC_CLK_ON;
+		writel(SDIO_MODE_CMD_VALUE, host->base + SDIO_MODE_CMD);
+ 		writel(SDIO_CLK_TOUT_RST_VALUE, host->base + SDIO_CLK_TOUT_RST);
+ 		printk("SDIO_STATE value: %d\n", readl(host->base + SDIO_STATE));
+ 		MMC_CLK_OFF;
+ 		printk("EMXX SDIO: %s not resume.\n", mmc_hostname(host->mmc));
+ 		return ret;
+ 	} else {
+ 		printk("EMXX SDIO: %s resume.\n", mmc_hostname(host->mmc));
+ 	}
 
 	if (!host || !host->suspended)
 		return 0;

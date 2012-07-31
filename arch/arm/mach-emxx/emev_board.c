@@ -32,6 +32,7 @@
 #include <linux/irq.h>
 #include <linux/smsc911x.h>
 #include <linux/dm9000.h>
+#include <linux/emev-rfkill.h>
 #ifdef CONFIG_EMXX_ANDROID
 #include <linux/android_pmem.h>
 #include <linux/usb/android_composite.h>
@@ -56,7 +57,7 @@
 #include "timer.h"
 
 #ifdef CONFIG_MACH_EMEV
-static int __initdata emxx_serial_ports[] = { 1, 0, 0, 0 };
+static int __initdata emxx_serial_ports[] = { 1, 1, 0, 0 };
 #else
 static int __initdata emxx_serial_ports[] = { 1, 0, 0, 0, 0, 0};
 #endif
@@ -221,6 +222,27 @@ static struct platform_device emxx_nand_device = {
 	.resource = emxx_nand_resource,
 };
 
+static struct emev_rfkill_platform_data emev_rfkill = {
+       .nshutdown_gpio = GPIO_BCM_BT_RST,
+};
+
+static struct platform_device emev_bt_rfkill_platform_device = {
+       .name   = "emev-rfkill",
+       .id     = -1,
+       .dev    = {
+               .platform_data  = &emev_rfkill,
+       },
+};
+
+static struct platform_device emev_wifi_rfkill_platform_device = {
+       .name   = "emev-wifirfkill",
+       .id     = -1,
+       .dev    = {
+               .platform_data  = &emev_rfkill,
+       },
+};
+
+
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
 /* PMEM */
@@ -306,6 +328,8 @@ static struct platform_device *devs[] __initdata = {
 	&emxx_light_device,
 	&emxx_battery_device,
 	&emxx_nand_device,
+ 	&emev_bt_rfkill_platform_device,
+ 	&emev_wifi_rfkill_platform_device,
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
 	&android_pmem_device,
@@ -372,6 +396,7 @@ static void __init emev_board_init(void)
 #endif
 
 	emxx_serial_init(emxx_serial_ports);
+
 
 #ifdef CONFIG_SMP
 	writel(0xfff00000, EMXX_SCU_VIRT + 0x44);

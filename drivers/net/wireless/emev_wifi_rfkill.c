@@ -255,7 +255,6 @@ static struct platform_driver emev_rfkill_platform_driver = {
 static int __init emev_rfkill_init(void)
 {
 	int ret;
-	debug_print("Entering\n");
 	ret=platform_driver_register(&emev_rfkill_platform_driver);
 	debug_print("Rfkill wifi init %d\n", ret);
 
