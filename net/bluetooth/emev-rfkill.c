@@ -42,6 +42,9 @@
 
 /* GPIO controls for Renesas EMEV - Livall tablet board */
 #define BT_RST		GPIO_BCM_BT_RST
+#define BCM_BT_RST	GPIO_BCM_BT_RST
+#define BCM_WLAN_RST	GPIO_BCM_WLAN_RST 
+#define BCM_WLAN_BT_EN	GPIO_BCM_WLAN_BT_EN
 
 static void bt_hw_init(void)
 {
