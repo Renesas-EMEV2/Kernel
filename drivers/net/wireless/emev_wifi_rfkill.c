@@ -153,17 +153,17 @@ static void emev_wifi_poweron(int op)
 	emxx_sdio1_connect();
 }
 
-int emev_rfkill_set_power(void *data, enum rfkill_user_states state)
+int emev_rfkill_set_radio_block(void *data, enum rfkill_user_states state)
 {
 	debug_print("Entering\n");
 	
 	switch (state) {
 		case RFKILL_USER_STATE_UNBLOCKED:
-			debug_print("rfkill wifi Unblocked\n");
+			debug_print("wifi Unblocked\n");
 			emev_wifi_poweron(1);
 			break;
 		case RFKILL_USER_STATE_SOFT_BLOCKED:
-			debug_print("rfkill wifi Blocked\n");
+			debug_print("wifi Blocked\n");
 			emev_wifi_poweroff(1);
 			break;
 		default:
@@ -172,16 +172,24 @@ int emev_rfkill_set_power(void *data, enum rfkill_user_states state)
 	return 0;
 }
 
-/* These are not normally used by a standard kernel driver */
+/* These aren't normally used by a standard kernel driver 
+   but the *stock* BCM4329 driver was customized to use these 
+   to handle power directly */
 EXPORT_SYMBOL(emev_wifi_poweron);
 EXPORT_SYMBOL(emev_wifi_poweroff);
-EXPORT_SYMBOL(emev_rfkill_set_power);
+/* EXPORT_SYMBOL(emev_rfkill_set_power); */
 
-/* These are used by the standard kernel BCM 4329 "DHD" drver */
+/* These are used by the standard kernel BCM 4329 "DHD" driver */
 static void bcm_wlan_power_on(int op) { return emev_wifi_poweron(op); }
 static void bcm_wlan_power_off(int op) { return emev_wifi_poweroff(op); }
 EXPORT_SYMBOL(bcm_wlan_power_on);
 EXPORT_SYMBOL(bcm_wlan_power_off);
+/* DUMMY 
+static int emev_rfkill_set_radio_block(void *data, bool blocked)
+{
+	return 0;
+}
+*/
 
 static void wifi_hw_init(void)
 {
@@ -192,12 +200,6 @@ static void wifi_hw_init(void)
 	gpio_direction_output(WIFI_RST, 0);
 }
 
-static int emev_rfkill_set_radio_block(void *data, bool blocked)
-{
-	debug_print("Entering\n");
-	debug_print("set power: %d\n", blocked);
-	return 0;
-}
 
 static const struct rfkill_ops emev_wifi_rfkill_ops = {
 	.set_block = emev_rfkill_set_radio_block,
@@ -221,8 +223,8 @@ static int emev_rfkill_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	/* set default status */
-	rfkill_set_states(pdata->rfkill, true, true);
+	/* set default status (Soft-blocked , Not Hard-blocked) */
+	rfkill_set_states(pdata->rfkill, true, false);
 
 	rc = rfkill_register(pdata->rfkill);
 

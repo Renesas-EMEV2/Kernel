@@ -91,10 +91,9 @@ static const struct rfkill_ops emev_bt_rfkill_ops = {
 
 static int emev_rfkill_probe(struct platform_device *pdev)
 {
-	debug_print("Rfkill bt probe\n");
-	
 	int rc = 0;
 	struct emev_rfkill_platform_data *pdata = pdev->dev.platform_data;
+	debug_print("Rfkill bt probe\n");
 
 	bt_hw_init();
 
@@ -109,7 +108,7 @@ static int emev_rfkill_probe(struct platform_device *pdev)
 	}
 
 	/* set default status */
-	rfkill_set_states(pdata->rfkill, true, true);
+	rfkill_set_states(pdata->rfkill, true, false);
 
 	rc = rfkill_register(pdata->rfkill);
 
