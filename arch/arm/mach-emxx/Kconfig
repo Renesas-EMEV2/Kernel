@@ -92,6 +92,7 @@ config EMXX_SPI
 
 config EMXX_PWM
 	tristate "PWM Driver support"
+        default m
 
 config EMXX_DTV
 	tristate "DTV Interface support"

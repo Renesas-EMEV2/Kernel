@@ -44,7 +44,7 @@ char const pmu_version[] =
 #include "timer.h"
 
 #include <mach/spi.h>
-
+#include <mach/axp192.h>
 
 /* PM flags */
 #define PM_CONTROL_MODE	1	/* 1: lowpower, 0: SPI */
@@ -1661,13 +1661,29 @@ int emxx_pmu_sleep(unsigned int sleep_flag)
 
 int emxx_pm_do_poweroff(void)
 {
+#ifdef CONFIG_EMXX_AXP192_PWC
+	unsigned char value;
+	int ret;
+#endif
+#ifdef	CONFIG_FB_EMXX
+	struct pm_message message = { .event = PM_EVENT_SUSPEND, };
+	emxx_lcd_suspend((struct platform_device *)NULL, message);
+#endif
+
 	/* shutdown */
+#ifdef CONFIG_EMXX_AXP192_PWC
+	axp192_write(AXP_IRQ_MASK1, 0x0);
+	axp192_write(AXP_IRQ_MASK2, 0x0);
+	axp192_write(AXP_IRQ_MASK3, 0x0);
+	axp192_write(AXP_IRQ_MASK4, 0x0);
+#else
 	pwc_reg_write(DA9052_IRQMASKA_REG, 0x40);	/* 10 */
 	pwc_reg_write(DA9052_RESET_REG, 0x41);		/* 20 */
 	pwc_reg_write(DA9052_ID01_REG, 0xB5);		/* 29 */
 	pwc_reg_write(DA9052_BUCKA_REG, 0x98);		/* 44 */
 	pwc_reg_write(DA9052_BUCKB_REG, 0x88);		/* 45 */
 	pwc_reg_write(DA9052_SEQTIMER_REG, 0xC1);	/* 43 */
+#endif
 
 	/* GPIO Disable */
 	pmu_gpio_mask(EMXX_PMU_CLK_POWEROFF);
@@ -1678,10 +1694,13 @@ int emxx_pm_do_poweroff(void)
 	pw_ic_mask(EMXX_PMU_CLK_POWEROFF);
 
 	/* for wake. */
+#ifdef CONFIG_EMXX_AXP192_PWC
+	axp192_read( AXP_PWROFF_CTRL , &value);
+	axp192_write( AXP_PWROFF_CTRL , value|0x80);
+#else
 	pwc_reg_write(DA9052_GPIO0809_REG, 0x11);	/* 25 */
-
 	pwc_reg_write(DA9052_CONTROLB_REG, 0x6D);	/* 15 */
-
+#endif
 	/* WFI */
 	cpu_do_idle();
 
