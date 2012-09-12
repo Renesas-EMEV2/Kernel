@@ -12,7 +12,7 @@ How to build a Kernel (tested on Ubuntu 11.10)
  export ARCH=arm
  export PATH=<path-to-Android-NDK-bin>:$PATH
  export CROSS_COMPILE=arm-linux-androideabi-
- make emev_mypad_defconfig
+ make emev_mypad_gb_defconfig
  make
 ...
 (took about 10 minutes, on my 2x2.4GHz CPU, 4Gb RAM)
@@ -32,5 +32,8 @@ Entry Point:  40008000
   LD [M]  drivers/scsi/scsi_wait_scan.ko
   LD [M]  sound/arm/snd-emxx-spdif.ko
 
+3) Default configurations
 
+ emev_mypad_gb_defconfig -> Livall tablet and GingerBread android
+ emev_mypad_jb_defconfig -> Livall tablet and JellyBean android
 
