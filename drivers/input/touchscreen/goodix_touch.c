@@ -21,6 +21,7 @@
 #include <linux/module.h>
 #include <linux/time.h>
 #include <linux/delay.h>
+//#define DEBUG
 #include <linux/device.h>
 #include <linux/earlysuspend.h>
 #include <linux/platform_device.h>
@@ -44,18 +45,18 @@ extern unsigned char get_emxx_board_version(void);
 extern unsigned char get_emxx_hw_version(void);
 */
 
-#define FNC_ENTERY printk("%s function called\n",__FUNCTION__);
-//#define DEBUG
-#define TAG "GOODIX_TP "
+#define FNC_ENTRY printk("%s function called\n",__FUNCTION__);
+#define DEBUG 1
+#define TAG "Goodix "
 
 #ifdef DEBUG
 #define debug_print(fmt, args...)	\
 		printk( TAG "%s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args);
-#define FNC_ENTERY printk("%s function called\n",__FUNCTION__);
+#define FNC_ENTRY printk("%s function called\n",__FUNCTION__);
 
 #else
 #define debug_print(fmt, args...)
-#define FNC_ENTERY
+#define FNC_ENTRY
 #endif
 
 
@@ -71,7 +72,11 @@ static struct workqueue_struct *goodix_wq;
 static struct point_queue  finger_list;	//record the fingers list 
 /*************************************************/
 
-const char *s3c_ts_name = "Goodix TouchScreen of GT80X";
+/* To save touch state */
+static int SavedTouch = 0;
+
+/*const char *s3c_ts_name = "gt80x";*/
+const char *s3c_ts_name = "touch";
 /*used by guitar_update module */
 struct i2c_client * i2c_connect_client = NULL;
 EXPORT_SYMBOL(i2c_connect_client);
@@ -99,18 +104,30 @@ static void emxx_setintpin(void)
 	len：	读取数据长度
 return：
 	执行消息数
+
+Function: Function as i2c_master_receive
+          Read from the machine data
+          Each read operation i2c_msg two, a message is used to send the slave address,
+          2 read address is used to send and retrieve data; each message sent before starting signal
+Parameters:
+         client: i2c device contains the device address
+         buf [0]: The first byte is read address
+         buf [1] ~ buf [len]: data buffer
+         len: the length of the read data
+return:
+         The implementation of the number of messages
 *********************************************************/
 static int i2c_read_bytes(struct i2c_client *client, uint8_t *buf, int len)
 {
 	struct i2c_msg msgs[2];
 	int ret=-1;
-	//发送写地址
+	// Send write address
 	msgs[0].flags=!I2C_M_RD;
 	msgs[0].addr=client->addr;
 	msgs[0].len=1;
 	msgs[0].buf=&buf[0];
-	//接收数据
-	msgs[1].flags=I2C_M_RD;//读消息
+	// Receive Data
+	msgs[1].flags=I2C_M_RD;// Read messages
 	msgs[1].addr=client->addr;
 	msgs[1].len=len-1;
 	msgs[1].buf=&buf[1];
@@ -121,7 +138,7 @@ static int i2c_read_bytes(struct i2c_client *client, uint8_t *buf, int len)
 
 /*******************************************************	
 功能：	Function as i2c_master_send 
-	向从机写数据
+	To write data to the slave
 参数：
 	client:	i2c设备，包含设备地址
 	buf[0]：	首字节为写地址
@@ -255,6 +272,7 @@ static void goodix_ts_work_func(struct work_struct *work)
 	uint8_t check_sum = 0;
 	int ret = -1; 
 	int count = 0;
+	int CurrentTouch = 0;
 
 	struct goodix_ts_data *ts = container_of(work, struct goodix_ts_data, work);
 
@@ -319,8 +337,8 @@ static void goodix_ts_work_func(struct work_struct *work)
 	point_data[1]&=0x1f;
 	finger = finger_bit^point_data[1];
 	if(finger == 0 && point_data[1] == 0)			
-		goto NO_ACTION;						//no fingers and no action
-	else if(finger == 0)						//the same as last time
+		goto NO_ACTION;	                   //no fingers and no action
+	else if(finger == 0)	                   //the same as last time
 		goto BIT_NO_CHANGE;
 	
 	//check which point(s) DOWN or UP
@@ -345,7 +363,6 @@ BIT_NO_CHANGE:
 			read_position = p->id*5+3;
 		else
 			read_position = 29;
-
 		
 		if(p->id != 3)
 		{
@@ -375,31 +392,44 @@ BIT_NO_CHANGE:
 	}
 
 #ifndef GOODIX_MULTI_TOUCH	
-		if(finger_list.head->state == FLAG_DOWN)
-		{
-			input_report_abs(ts->input_dev, ABS_X, finger_list.head->x);
-			input_report_abs(ts->input_dev, ABS_Y, finger_list.head.y);	
-		} 
-		input_report_abs(ts->input_dev, ABS_PRESSURE, finger_list.head->pressure);
-		input_report_key(ts->input_dev, BTN_TOUCH, finger_list.head->state);   
+        if(finger_list.head->state == FLAG_DOWN)
+        {
+                input_report_abs(ts->input_dev, ABS_X, finger_list.head->x);
+                input_report_abs(ts->input_dev, ABS_Y, finger_list.head.y);	
+        } 
+        input_report_abs(ts->input_dev, ABS_PRESSURE, finger_list.head->pressure);
+        input_report_key(ts->input_dev, BTN_TOUCH, finger_list.head->state);   
 #else
-
-	/* ABS_MT_TOUCH_MAJOR is used as ABS_MT_PRESSURE in android. */
+	count = 0;
 	for(p = finger_list.head; p != NULL; p = p->next)
 	{
 		if(p->state == FLAG_DOWN)
 		{
 			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, p->x);
 			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, p->y);
+		        input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, p->pressure);
+		        //input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, p->pressure);
+		        input_report_abs(ts->input_dev, ABS_MT_PRESSURE, p->pressure);
+		        input_report_key(ts->input_dev, BTN_TOUCH, 1);
+			count++;
+			SavedTouch = 1;
 		} 
-		//input_report_abs(ts->input_dev, ABS_MT_TRACKING_ID, p->id);
-		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, p->pressure);
-		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, p->pressure);
-		//printk("ID:%d.\n", p->id);
-		input_mt_sync(ts->input_dev);	
+		debug_print("finger# %i state:%i x%06d/y%06d/p%03d\n",
+                            p->id, p->state, p->x, p->y, p->pressure);
 	}
-
+	debug_print("touch count %i\n", count);
+	if (count > 0) {
+		/* Send MT sync */
+		input_mt_sync(ts->input_dev);
+	}
+        if(SavedTouch != 0 && count == 0) 
+        {
+		/* Last touch released - send an empty MT sync */
+                input_mt_sync(ts->input_dev);
+  		SavedTouch = 0;
+  	}
 #endif
+
 	input_sync(ts->input_dev);
 
 	delete_points(&finger_list);
@@ -445,7 +475,7 @@ static irqreturn_t goodix_ts_irq_handler(int irq, void *dev_id)
 {
 	struct goodix_ts_data *ts = dev_id;
 	
-	debug_print("%s is called\n",__FUNCTION__);
+	// debug_print("%s is called\n",__FUNCTION__);
 	disable_irq_nosync(ts->client->irq);
 	queue_work(goodix_wq, &ts->work);
 	
@@ -507,8 +537,8 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
 	int ret = 0;
 	int retry=0;
 	int count=0;
-FNC_ENTERY;
 	struct goodix_i2c_platform_data *pdata;
+FNC_ENTRY;
 	dev_dbg(&client->dev,"Install touchscreen driver for guitar.\n");
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) 
@@ -602,22 +632,23 @@ FNC_ENTERY;
 	}
 
 	ts->input_dev->evbit[0] = BIT_MASK(EV_SYN) | BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) ;
+        ts->input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 #ifndef GOODIX_MULTI_TOUCH	
-	ts->input_dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT_MASK(BTN_TOUCH);
 	ts->input_dev->absbit[0] = BIT(ABS_X) | BIT(ABS_Y);
-
 	input_set_abs_params(ts->input_dev, ABS_X, 0, SCREEN_MAX_HEIGHT, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_Y, 0, SCREEN_MAX_WIDTH, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_PRESSURE, 0, 255, 0, 0);	
+	input_set_abs_params(ts->input_dev, ABS_PRESSURE, 0, 255, 0, 0);
 #else
 	//ts->input_dev->absbit[0] = BIT_MASK(ABS_MT_TRACKING_ID) |
 	ts->input_dev->absbit[0] = 
-		BIT_MASK(ABS_MT_TOUCH_MAJOR)| BIT_MASK(ABS_MT_WIDTH_MAJOR) |
-  		BIT_MASK(ABS_MT_POSITION_X) | BIT_MASK(ABS_MT_POSITION_Y); 	// for android
-	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
+		BIT_MASK(ABS_MT_TOUCH_MAJOR)| /* BIT_MASK(ABS_MT_WIDTH_MAJOR) | */
+  		BIT_MASK(ABS_MT_POSITION_X) | BIT_MASK(ABS_MT_POSITION_Y) |
+                BIT_MASK(ABS_MT_PRESSURE);
+	//input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, SCREEN_MAX_HEIGHT, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, SCREEN_MAX_WIDTH, 0, 0);	
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, SCREEN_MAX_WIDTH, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
 	//input_set_abs_params(ts->input_dev, ABS_MT_TRACKING_ID, 0, MAX_FINGER_NUM-1, 0, 0);	
 #endif	
 

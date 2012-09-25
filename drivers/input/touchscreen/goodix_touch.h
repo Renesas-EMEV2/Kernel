@@ -32,8 +32,12 @@
 #define TOUCH_MAX_HEIGHT 	7680	
 #define TOUCH_MAX_WIDTH	 	5120
 //显示屏的分辨率，根据具体平台更改，与触摸屏映射坐标相关
-#define SCREEN_MAX_HEIGHT	480				
-#define SCREEN_MAX_WIDTH		272
+//#define SCREEN_MAX_HEIGHT	480				
+//#define SCREEN_MAX_WIDTH	272
+// Scale to screen size directly
+#define SCREEN_MAX_HEIGHT	800				
+#define SCREEN_MAX_WIDTH	480
+
 
 #define INT_PORT  		GPIO_P29			//Int IO port
 #ifdef INT_PORT
