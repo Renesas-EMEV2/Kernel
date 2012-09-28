@@ -46,7 +46,7 @@ extern unsigned char get_emxx_hw_version(void);
 */
 
 #define FNC_ENTRY printk("%s function called\n",__FUNCTION__);
-#define DEBUG 1
+//#define DEBUG 1
 #define TAG "Goodix "
 
 #ifdef DEBUG
@@ -74,9 +74,7 @@ static struct point_queue  finger_list;	//record the fingers list
 
 /* To save touch state */
 static int SavedTouch = 0;
-
-/*const char *s3c_ts_name = "gt80x";*/
-const char *s3c_ts_name = "touch";
+const char *s3c_ts_name = "gt80x";
 /*used by guitar_update module */
 struct i2c_client * i2c_connect_client = NULL;
 EXPORT_SYMBOL(i2c_connect_client);
