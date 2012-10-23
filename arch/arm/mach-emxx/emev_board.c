@@ -32,8 +32,8 @@
 #include <linux/irq.h>
 #include <linux/smsc911x.h>
 #include <linux/dm9000.h>
-#include <linux/emev-rfkill.h>
 #ifdef CONFIG_EMXX_ANDROID
+#include <linux/emev-rfkill.h>
 #include <linux/android_pmem.h>
 #include <linux/usb/android_composite.h>
 #endif
@@ -222,6 +222,7 @@ static struct platform_device emxx_nand_device = {
 	.resource = emxx_nand_resource,
 };
 
+#ifdef CONFIG_EMXX_ANDROID
 static struct emev_rfkill_platform_data emev_rfkill = {
        .nshutdown_gpio = GPIO_BCM_BT_RST,
 };
@@ -242,8 +243,6 @@ static struct platform_device emev_wifi_rfkill_platform_device = {
        },
 };
 
-
-#ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
 /* PMEM */
 static struct android_pmem_platform_data android_pmem_pdata = {
@@ -328,9 +327,9 @@ static struct platform_device *devs[] __initdata = {
 	&emxx_light_device,
 	&emxx_battery_device,
 	&emxx_nand_device,
+#ifdef CONFIG_EMXX_ANDROID
  	&emev_bt_rfkill_platform_device,
  	&emev_wifi_rfkill_platform_device,
-#ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
 	&android_pmem_device,
 #endif
