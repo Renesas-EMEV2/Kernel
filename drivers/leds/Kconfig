@@ -313,6 +313,10 @@ if LEDS_TRIGGERS
 
 comment "LED Triggers"
 
+config LEDS_TRIGGER_EVENT
+	tristate "LED On/Off Event Trigger"
+	depends on LEDS_TRIGGERS
+
 config LEDS_TRIGGER_TIMER
 	tristate "LED Timer Trigger"
 	help

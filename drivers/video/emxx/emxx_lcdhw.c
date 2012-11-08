@@ -876,7 +876,6 @@ void lcd_hw_unreset(void)
 	emxx_clkctrl_on(EMXX_CLKCTRL_LCDPCLK);
 }
 
-
 /******************************************************************************
 * MODULE   : lcd_hw_backlight_off
 * FUNCTION : LCD(H/W) backlight control(off)
@@ -885,13 +884,33 @@ void lcd_hw_unreset(void)
 ******************************************************************************/
 void lcd_hw_backlight_off(void)
 {
-	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
-		printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
-		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
-		/* LED1_EN:OFF LED1_RAMP:OFF LED2_EN:OFF LED2_RAMP:OFF */
-		pwc_write(DA9052_LEDCONT_REG, 0x00, 0x0f);
-		/* BOOST_EN:OFF LED1_IN_EN:OFF LED2_IN_EN:OFF */
-		pwc_write(DA9052_BOOST_REG, 0x00, 0x07);
+	if( true ) //4 == board_version)
+	{
+		if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
+			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
+			gpio_direction_output(GPIO_P104, 0);		//LCD BK
+			msleep(200);
+			gpio_direction_output(GPIO_P99,0);
+		}
+		else {
+			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
+			gpio_direction_output(GPIO_P104, 0);		//LCD BK
+			msleep(200);
+			gpio_direction_output(GPIO_P99,0);
+			writel(readl(CHG_PINSEL_G096) | (0x1 << 24),CHG_PINSEL_G096);
+			gpio_direction_output(GPIO_P120, 1);
+		}
+	}
+	else
+	{
+		if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
+			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
+			gpio_direction_output(GPIO_P104, 0);		//LCD BK
+			msleep(200);
+		}
 	}
 }
 
@@ -903,18 +922,24 @@ void lcd_hw_backlight_off(void)
 * NOTE     : none
 ******************************************************************************/
 void lcd_hw_backlight_on(void)
-{
+{	
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 		printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight On>\n");
-		mdelay(110);
-		/* BOOST_EN:ON LED1_IN_EN:ON LED2_IN_EN:ON */
-		pwc_write(DA9052_BOOST_REG, 0x07, 0x07);
-		 /* LED1_EN:ON LED1_RAMP:ON LED2_EN:ON LED2_RAMP:ON */
-		pwc_write(DA9052_LEDCONT_REG, 0x0f, 0x0f);
-	}
+		if( true ) //4 == board_version)
+		{
+			gpio_direction_output(GPIO_P99,1);
+			mdelay(200);
+			gpio_direction_output(GPIO_P104, 1);		//LCD BK
+			gpio_direction_output(GPIO_P150, 1);
+		}
+		else
+		{
+			mdelay(200);
+			gpio_direction_output(GPIO_P104, 1);		//LCD BK
+		}
+	}	
 }
-
 
 /* ------------------ LCDC rgister check function -------------------------- */
 /*****************************************************************************

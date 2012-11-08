@@ -418,6 +418,10 @@ static int emxx_fb_mmap(struct fb_info *info, struct vm_area_struct *vma);
 /* workqueue function */
 static void timeout_update_bottom_half_do(struct work_struct *num);
 
+#ifdef CONFIG_LEDS_TRIGGER_EVENT
+extern void led_event_suspend(void);
+extern void led_event_wakeup(void);
+#endif
 
 /********************************************************
  *  Function Structure                                  *
@@ -2663,6 +2667,9 @@ static void emxx_fb_early_suspend(struct early_suspend *h)
 	drvdata = container_of(h, struct emxx_fb_drvdata, early_suspend);
 	state.event = PM_EVENT_SUSPEND;
 	emxx_fb_suspend(drvdata->dev, state);
+#ifdef CONFIG_LEDS_TRIGGER_EVENT
+	led_event_suspend();
+#endif
 }
 
 
@@ -2670,6 +2677,9 @@ static void emxx_fb_late_resume(struct early_suspend *h)
 {
 	struct emxx_fb_drvdata *drvdata;
 	drvdata = container_of(h, struct emxx_fb_drvdata, early_suspend);
+#ifdef CONFIG_LEDS_TRIGGER_EVENT
+	led_event_wakeup();
+#endif
 	emxx_fb_resume(drvdata->dev);
 }
 #endif /* CONFIG_HAS_EARLYSUSPEND */
