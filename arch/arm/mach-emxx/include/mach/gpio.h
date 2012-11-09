@@ -379,8 +379,10 @@
 #define GPIO_3G_EN            GPIO_P24
 /* LCD control */
 #define SCREEN_RST 	      GPIO_P103
+#define SCREEN_BACKLIGHT      GPIO_P104
 #define SCREEN_DISP	      GPIO_P99
 #define SCREEN_POERON	      GPIO_P150
+#define SCREEN_OUT_NOLCD      GPIO_P120
 
 static inline int __gpio_set_direction(unsigned gpio, int is_input)
 {

@@ -53,21 +53,21 @@ struct gpio_keys_drvdata {
 static struct gpio_keys_button gpio_keys_buttons[] = {
 	[0] = {
 		.code        = KEY_VOLUMEDOWN,
-		.gpio           = GPIO_P14,
+		.gpio           = GPIO_BUTT_VOLUMEDOWN,
 		.active_levl     = 0,
 		.desc           = "P13",
 		.debounce_interval  =50,
 	},
 	[1] = {
 		.code        = KEY_VOLUMEUP,
-		.gpio           = GPIO_P13,
+		.gpio           = GPIO_BUTT_VOLUMEUP,
 		.active_levl     = 0,
 		.desc           = "P14",
 		.debounce_interval  =50,
 	},
 	[2] = {
 		.code        = KEY_POWER,
-		.gpio           = GPIO_P143,
+		.gpio           = GPIO_BUTT_POWER,
 		.active_levl     = 0,
 		.desc           = "P143",
 		.debounce_interval  =50,
