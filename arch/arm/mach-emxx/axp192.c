@@ -30,11 +30,20 @@
 #include <mach/axp192.h>
 #include <mach/gpio.h>
 
-#define	DEBUG
+/* #define	DEBUG */
+#define TAG "EMXX_AXP192:"
 
 #define AXP192_REG_NUM		(0xC0)
 #define GPIO_PWIC_INT 	0
 #define INT_PWC			INT_GPIO_0
+
+#ifdef DEBUG
+#define FNC_ENTRY printk(TAG "entered function %s\n", __FUNCTION__);
+#else
+#define FNC_ENTRY 
+#endif
+
+extern int codec_power_off(void);
 
 extern int get_pm_state(void);
 static struct emxx_pmic_regs axp192_regs[AXP192_REG_NUM];
@@ -56,10 +65,11 @@ static int axp192_ack_irq(void)
 
 static void emev_axp192_init(void)
 {
+	unsigned char vbus_status = 0;
 	/* Mask All interrupts that are not needed */
-	axp192_write(AXP_IRQ_MASK1, 0x0);
+	axp192_write(AXP_IRQ_MASK1, 0xFE);
 	axp192_write(AXP_IRQ_MASK2, 0x0);
-	axp192_write(AXP_IRQ_MASK3, 0x0);
+	axp192_write(AXP_IRQ_MASK3, AXP_IRQ_KEY_SHORT| AXP_IRQ_KEY_LONG);
 	axp192_write(AXP_IRQ_MASK4, 0x0);
 
 	/* Enable Coulometer function and clean Coulometer counter */
@@ -68,9 +78,28 @@ static void emev_axp192_init(void)
 	/* Enable system shutdown when Internal Temperature Overflow */
 	axp192_write_mask(AXP_INT_THRESHOLD, AXP_INT_SHUTDOWN, AXP_INT_SHUTDOWN);
 
-	/* Disable system shutdown when Power Key Long Press */
+	axp192_write(AXP_VBUS_IPSOUT, 0xE2);//rd-lzd 12-Aug-2011 Enable VBUS-IPSOUT can be open.
+
+	/* Enable system shutdown when Power Key Long Press */
 	//axp192_write_mask(AXP_PWRKEY_CTRL, AXP_PWRKEY_SHUTDOWN, AXP_PWRKEY_SHUTDOWN);
-        axp192_write(0x0E, AXP_BUCK_MODE);
+	axp192_write(AXP_PWRKEY_CTRL, 0x6B);
+
+	/*Set core voltage (DCDC-2) to 1.15V*/
+	axp192_write(0x23, 0x12); //0x10:1.10V, 0x12:1.115V, 0x14:0x120V, 0x16:1.125V
+	//axp192_write(0x23, 0x11);
+
+	axp192_write(AXP_BUCK_MODE,0xEE); //DCDC fixed to PWM mode
+	
+	axp192_write(0x90, 0x02); //GPIO act as LDO
+	axp192_write(0x91, 0x00); //LDO output is 1.8V
+
+	//rd-lzd 12-Aug-2011 clear all axp192 irq after init the chip.
+	axp192_write(AXP_IRQ_STATE1,0xff);	
+	axp192_write(AXP_IRQ_STATE2,0xff);
+	axp192_write(AXP_IRQ_STATE3,0xff);
+	axp192_write(AXP_IRQ_STATE4,0xff);
+	axp192_read(AXP_VBUS_IPSOUT, &vbus_status);
+	axp192_write(AXP_VBUS_IPSOUT,vbus_status|0x80);
 }
 
 /* 
@@ -682,15 +711,30 @@ static int set_axp192_voltage(int cmd, int mv)
 	return status;
 }
 
+static int (*battry_callback)(int event) = NULL;
+int axp192_setbattry_callback(int (*callback)(int))
+{
+FNC_ENTRY;
+	battry_callback = callback;
+	return 0;
+}
+EXPORT_SYMBOL(axp192_setbattry_callback);
+
 static void axp192_worker(struct work_struct *work)
 {
 	unsigned int event;
 	unsigned char i, states[4];
-
+//	printk("\ncall axp192_worker\n");
 	while (event = axp192_event_change(states)) {
-		printk(KERN_INFO "%s event 0x%x, states:0x%02x 0x%02x 0x%02x 0x%02x\n",
-				__func__, event, states[0],states[1],states[2],states[3]);
+//		printk(KERN_INFO "%s event 0x%x, states:0x%02x 0x%02x 0x%02x 0x%02x\n",
+//				__func__, event, states[0],states[1],states[2],states[3]);
 		//pmic_event_handle(event);
+	    
+//		printk("\ncall axp192_setbattry_callback\n");
+		if(battry_callback)
+		{
+			battry_callback(event);
+		}
 
 		/* clean irq states register  */
 		for (i=0; i<4; i++) {
@@ -713,9 +757,9 @@ static irqreturn_t axp192_irq_handler(int irq, void *dev_id)
 	struct axp192_platform_data *pdata = client->dev.platform_data;
 
 	/* clear the irq */
-	pdata->ack_irq();
+	//pdata->ack_irq();
 
-	schedule_work(&pdata->work);
+	schedule_work(&axp192_data.work);
 
 	return IRQ_HANDLED;
 }
@@ -727,7 +771,12 @@ static irqreturn_t axp192_irq_handler(int irq, void *dev_id)
  */
 static int axp192_suspend(struct i2c_client *client, pm_message_t state)
 {
+	u8 val;
 
+	/* close LDO3 output */
+	axp192_read(AXP_BUCK13_LDO23EN, &val);
+	axp192_write(AXP_BUCK13_LDO23EN, (val&0xF7));
+	
 	disable_irq(client->irq);
 #if 0
 	unsigned char val;
@@ -756,6 +805,11 @@ static int axp192_suspend(struct i2c_client *client, pm_message_t state)
 static int axp192_resume(struct i2c_client *client)
 {
 	int i;
+	u8 val;
+
+	/* open LDO3 output */
+	axp192_read(AXP_BUCK13_LDO23EN, &val);
+	axp192_write(AXP_BUCK13_LDO23EN, (val|0x8));
 
 	for (i = 0; i < AXP192_REG_NUM; i++)
 		axp192_regs[i].hit = 0;
@@ -781,6 +835,18 @@ static int axp192_resume(struct i2c_client *client)
 
 void axp192_shutdown(struct i2c_client *client)
 {
+    unsigned char value;
+
+    codec_power_off();
+    schedule_timeout_uninterruptible(msecs_to_jiffies(500));
+
+    axp192_write(AXP_IRQ_MASK1, 0x0);
+    axp192_write(AXP_IRQ_MASK2, 0x0);
+    axp192_write(AXP_IRQ_MASK3, 0x0);
+    axp192_write(AXP_IRQ_MASK4, 0x0);
+    axp192_read( AXP_PWROFF_CTRL , &value);
+    axp192_write( AXP_PWROFF_CTRL , value|0x80);
+
 }
 
 static struct pmic_ops axp192_pmic_ops = {
@@ -895,6 +961,9 @@ static int __devinit axp192_probe(struct i2c_client *client,
 	spin_lock_init(&pdata->lock);
 	/* init workqueue */
 	INIT_WORK(&pdata->work, axp192_worker);
+
+	pdata->platform_init();
+
 	/* init irq */
 	pdata->init_irq();
 	ret = request_irq(INT_PWC, axp192_irq_handler, IRQF_TRIGGER_FALLING,
@@ -904,16 +973,12 @@ static int __devinit axp192_probe(struct i2c_client *client,
 		//return ret;
 	}
 
-	pdata->platform_init();
-
 	axp192_power_module = pdata->power_supply_modules;
 
 #ifdef CONFIG_PROC_FS
 	create_axp192_proc_file();
 #endif
 
-	/*Set core voltage (DCDC-2) to 1.125V*/
-	axp192_write(0x23, 0x11);
 	//pmic_set_ops(&axp192_pmic_ops);
 
 	return 0;
@@ -961,7 +1026,7 @@ static void __exit axp192_exit(void)
 	i2c_del_driver(&axp192_driver);
 }
 
-/*These function is make other drivers happy, will be replaced later*/
+/* These function is make other drivers happy, will be replaced later */
 int pwc_write(unsigned short offset, unsigned int data, unsigned int mask)
 {
 	return 0;
