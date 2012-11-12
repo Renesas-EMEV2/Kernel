@@ -324,17 +324,17 @@ static struct platform_device *devs[] __initdata = {
 #if defined(CONFIG_KEYBOARD_GPIO)	
   	&gpio_key_device,
 #endif
-	&emxx_light_device,
-	&emxx_battery_device,
-	&emxx_nand_device,
 #ifdef CONFIG_EMXX_ANDROID
- 	&emev_bt_rfkill_platform_device,
- 	&emev_wifi_rfkill_platform_device,
 #ifdef CONFIG_ANDROID_PMEM
 	&android_pmem_device,
 #endif
 	&usb_mass_storage_device,
 	&android_usb_device,
+ 	&emev_bt_rfkill_platform_device,
+ 	&emev_wifi_rfkill_platform_device,
+	&emxx_light_device,
+	&emxx_battery_device,
+	&emxx_nand_device,
 #endif
 };
 
