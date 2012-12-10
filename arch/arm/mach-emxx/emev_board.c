@@ -479,10 +479,10 @@ static void __init emev_board_init(void)
 /*Setup LCD*/
 	{
 		int val;
-		gpio_direction_output(SCREEN_RST , 1);
+		gpio_direction_output(GPIO_LCD_RST , 1);
 		writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
-		gpio_direction_output(SCREEN_DISP , 1);
-		gpio_direction_output(SCREEN_POERON, 1);
+		gpio_direction_output(GPIO_LCD_DISP , 1);
+		gpio_direction_output(GPIO_LCD_POWER, 1);
 
 		val = readl(CHG_PINSEL_G128);
 		writel(val|0x8000, CHG_PINSEL_G128);

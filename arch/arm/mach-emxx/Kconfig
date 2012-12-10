@@ -102,15 +102,6 @@ config EMXX_DTV_BUFFERSIZE
 	depends on EMXX_DTV
 	default "8192"
 
-config EMXX_PWC
-	bool "DA9052"
-	default y
-
-config EMXX_EXTIO
-	bool "EMXX_EXTIO"
-	depends on (EMEV_BOARD_EVA || EMGR_BOARD_EVA) && I2C
-	default y
-
 config EMXX_AXP192_PWC
        bool "EMEV AXP 192 driver support"
        depends on I2C

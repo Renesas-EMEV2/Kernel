@@ -39,9 +39,10 @@
 void
 emxx_brightness_set(struct led_classdev *led_cdev, enum led_brightness value)
 {
-	if(value>255) value = 255;
-	if(value<1) value = 1;
-
+	if (value < HW_MIN_BRIGHTNESS)
+		value = HW_MIN_BRIGHTNESS;
+ 	if (value > HW_MAX_BRIGHTNESS)
+ 		value = HW_MAX_BRIGHTNESS;
 	writel(0x10,PWM_CH0_CTRL);
 	writel(value,PWM_CH0_LEDGE0);
 	writel(0xFF,PWM_CH0_TEDGE0);
@@ -62,12 +63,12 @@ static struct led_classdev emxx_backlight_led = {
 static struct gpio_led emxx_led_list[] = {
 	{
 		.name = "led1",
-		.gpio = GPIO_PWC_LED1,
+		.gpio = GPIO_NULL,
 		.retain_state_suspended = 1,
 	},
 	{
 		.name = "led2",
-		.gpio = GPIO_PWC_LED2,
+		.gpio = GPIO_NULL,
 		.retain_state_suspended = 1,
 	},
 };

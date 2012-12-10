@@ -29,7 +29,7 @@
 #include <mach/smu.h>
 #define POWER_KEY_ID	2
 
-#define DEBUG 1
+/* #define DEBUG 1 */
 #define TAG "EMXX GPIOKEY"
 
 #ifdef DEBUG
@@ -86,21 +86,28 @@ static void gpio_check_button(unsigned long _data)
 	struct gpio_keys_button *button = data->button;
 	struct input_dev *input = data->input;
 	unsigned int type = button->type ?: EV_KEY;
-	
+#ifdef CONFIG_LEDS_TRIGGER_EVENT
+	extern void led_event_on(void);		//add by heyu 2011.12.23
+#endif	
 	int state = (gpio_get_value(button->gpio) ? 0 : 1);// ^ button->active_low;
-	//dbg_printk("gpio check button: %d\n",state);
+	dbg_printk("gpio check button: %d\n",state);
 
 	if(state) {
 		if(button->prev_state==0 ) {
 		dbg_printk("report Key down\n");
+#ifdef CONFIG_LEDS_TRIGGER_EVENT
+			if (button->code != KEY_POWER)
+				led_event_on();		//add by heyu 2011.12.23
+#endif
 			input_event(input, type, button->code, 1);
 			button->prev_state = state;
-			//dbg_printk("gpio_keys dn   code[%d],type=%d\n",button->code,state);
+			dbg_printk("gpio_keys dn   code[%d],type=%d\n",button->code,state);
 			input_sync(input);
 		}
 		else {
 			if(button->code != KEY_POWER)
 			{
+
 				dbg_printk("gpio_keys auto repeat\n");
 				input_event(input, type, button->code, 2);
 				button->prev_state = state;
@@ -233,6 +240,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 		if (button->wakeup)
 			wakeup = 1;
 
+		dbg_printk("probe btn %x, wakeup %d\n", button->code, wakeup); 
 		input_set_capability(input, type, button->code);
 	}
 
@@ -242,7 +250,7 @@ static int __devinit gpio_keys_probe(struct platform_device *pdev)
 			"error: %d\n", error);
 		goto fail2;
 	}
-
+	
 	device_init_wakeup(&pdev->dev, wakeup);
 
 	return 0;
@@ -294,9 +302,12 @@ static int gpio_keys_suspend(struct platform_device *pdev, pm_message_t state)
 
 dbg_printk("GPIO key suspend\n");
 	if (device_may_wakeup(&pdev->dev)) {
+dbg_printk("device_may_wakeup\n");
 		for (i = 0; i < pdata->nbuttons; i++) {
+dbg_printk("i=%d\n", i);
 			struct gpio_keys_button *button = &pdata->buttons[i];
 			if (button->wakeup) {
+dbg_printk("wakeup");
 				int irq = gpio_to_irq(button->gpio);
 				enable_irq_wake(irq);
 			}
@@ -330,7 +341,7 @@ static int gpio_keys_resume(struct platform_device *pdev)
 		dbg_printk("report Key down\n");
 		input_event(input, EV_KEY, button->code, 1);
 		//button->prev_state = state;
-		dbg_printk("gpio_keys dn   code[%d],type=%d\n",button->code,state);
+		dbg_printk("gpio_keys dn code[%d],type=%d\n",button->code,state);
 		input_sync(input);
 
 		dbg_printk("report Key up\n");

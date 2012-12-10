@@ -892,18 +892,18 @@ void lcd_hw_backlight_off(void)
 		if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
-			gpio_direction_output(SCREEN_BACKLIGHT, 0);
+			gpio_direction_output(GPIO_LCD_BACKLIGHT, 0);
 			msleep(200);
-			gpio_direction_output(SCREEN_DISP,0);
+			gpio_direction_output(GPIO_LCD_DISP,0);
 		}
 		else {
 			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
-			gpio_direction_output(SCREEN_BACKLIGHT, 0);
+			gpio_direction_output(GPIO_LCD_BACKLIGHT, 0);
 			msleep(200);
-			gpio_direction_output(SCREEN_DISP,0);
+			gpio_direction_output(GPIO_LCD_DISP,0);
 			writel(readl(CHG_PINSEL_G096) | (0x1 << 24),CHG_PINSEL_G096);
-			gpio_direction_output(SCREEN_OUT_NOLCD, 1);
+			gpio_direction_output(GPIO_LCD_NOLCD, 1);
 		}
 	}
 	else
@@ -911,7 +911,7 @@ void lcd_hw_backlight_off(void)
 		if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 			printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 			printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
-			gpio_direction_output(SCREEN_BACKLIGHT, 0);
+			gpio_direction_output(GPIO_LCD_BACKLIGHT, 0);
 			msleep(200);
 		}
 	}
@@ -931,15 +931,15 @@ void lcd_hw_backlight_on(void)
 		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight On>\n");
 		if( true ) //4 == board_version)
 		{
-			gpio_direction_output(SCREEN_DISP,1);
+			gpio_direction_output(GPIO_LCD_DISP,1);
 			mdelay(200);
-			gpio_direction_output(SCREEN_BACKLIGHT, 1);		//LCD BK
-			gpio_direction_output(SCREEN_POERON, 1);
+			gpio_direction_output(GPIO_LCD_BACKLIGHT, 1);		//LCD BK
+			gpio_direction_output(GPIO_LCD_POWER, 1);
 		}
 		else
 		{
 			mdelay(200);
-			gpio_direction_output(SCREEN_BACKLIGHT, 1);		//LCD BK
+			gpio_direction_output(GPIO_LCD_BACKLIGHT, 1);		//LCD BK
 		}
 	}	
 }
@@ -1422,7 +1422,7 @@ void lcd_module_hw_reset(void)
 static void lcd_work(struct work_struct *work)
 {
 	writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
-	gpio_direction_output(SCREEN_DISP , 1);	
+	gpio_direction_output(GPIO_LCD_DISP , 1);	
 	lcd_hw_backlight_on();
 }
 
@@ -1439,11 +1439,11 @@ int lcd_module_hw_power_on(void)
 	led_event_on();		//add by heyu 2011.12.24
 #endif
 	//LCD unreset
-	gpio_direction_output(SCREEN_RST , 1);
+	gpio_direction_output(GPIO_LCD_RST , 1);
 
 	//LCD ON
 	writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
-	gpio_direction_output(SCREEN_DISP , 1);
+	gpio_direction_output(GPIO_LCD_DISP , 1);
 	lcd_hw_backlight_on();
 
 	return 0;
@@ -1463,13 +1463,13 @@ int lcd_module_hw_power_off(void)
 	led_event_off();
 #endif
 	lcd_hw_backlight_off();
-	gpio_direction_output(SCREEN_DISP , 0);	
+	gpio_direction_output(GPIO_LCD_DISP , 0);	
 
 	//LCD reset
 	writel(readl(CHG_PINSEL_G096)|0x100, CHG_PINSEL_G096);
 	writel((readl(CHG_PULL11)&0xFFF0FFFF)|0x50000, CHG_PULL11);
 
-	gpio_direction_output( SCREEN_RST , 0);
+	gpio_direction_output( GPIO_LCD_RST , 0);
 
 	return 0;
 }
@@ -1489,7 +1489,7 @@ int lcd_module_hw_standby(void)
 #ifdef CONFIG_LEDS_TRIGGER_EVENT
 	led_event_off();
 #endif
-	gpio_direction_output(SCREEN_DISP , 0);	
+	gpio_direction_output(GPIO_LCD_DISP , 0);	
 
 	return 0;
 }
@@ -1506,7 +1506,7 @@ int lcd_module_hw_wakeup(void)
 	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 	//LCD unreset
 	writel(readl(CHG_PINSEL_G096) | 0x88, CHG_PINSEL_G096);
-	gpio_direction_output(SCREEN_DISP , 1);	
+	gpio_direction_output(GPIO_LCD_DISP , 1);	
 	lcd_hw_backlight_on();
 #ifdef CONFIG_LEDS_TRIGGER_EVENT
 	led_event_on();	
