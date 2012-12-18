@@ -27,12 +27,13 @@
 #include <linux/delay.h>
 #endif
 
+
 #define DRIVER_VERSION "v1.0"
 #define DRIVER_AUTHOR "Bee<http://www.pixcir.com.cn>"
 #define DRIVER_DESC "Pixcir I2C Touchscreen Driver"
 #define DRIVER_LICENSE "GPL"
 
-/* #define DEBUG 1 */
+//#define DEBUG 1
 #define	printk(x...) printk("emxx_ts:" x)
 
 #define TOUCHSCREEN_MINX 0
@@ -40,17 +41,14 @@
 #define TOUCHSCREEN_MINY 0
 #define TOUCHSCREEN_MAXY 600
 
-#define GPIO_TOUCHSCREEN_RESET GPIO_P97
-
 static struct workqueue_struct *pixcir_wq;
 
 struct pixcir_i2c_ts_data{
 	struct i2c_client *client;
 	struct input_dev *input;
 	struct delayed_work work;
+	struct timer_list tmr_reset;
 	int irq;
-	struct workqueue_struct *reset_wq;
-	struct work_struct reset_work;
 };
 
 static struct pixcir_i2c_ts_data *m_ts;
@@ -60,12 +58,15 @@ void touchscreen_calibrate(void);
 #ifdef CONFIG_MACH_EMEV
 static void pixcir_do_reset(int oning)
 {
+#ifdef DEBUG
+	printk( "pixcir_do_reset: %d\n", oning);
+#endif
 	if(oning) {
-		gpio_direction_output(GPIO_TOUCHSCREEN_RESET, 0);
+		gpio_direction_output(GPIO_PIXCIR_RESET, 0);
 	} else {
 		writel((readl(CHG_PULL10) & 0xff0fffff), CHG_PULL10);
 		writel((readl(CHG_PINSEL_G096) | 0x2), CHG_PINSEL_G096);
-		gpio_direction_input(GPIO_TOUCHSCREEN_RESET);
+		gpio_direction_input(GPIO_PIXCIR_RESET);
 	}
 }
 
@@ -79,7 +80,7 @@ static void pixcir_reset(int delayMS)
 static inline void emxx_ts_connect(void)
 {
 #ifdef DEBUG
-	printk("emxx_ts_connect - set gpio\n");
+	printk("set gpio\n");
 #endif
 	pixcir_reset(300);
 
@@ -94,13 +95,23 @@ static inline void emxx_ts_connect(void)
 	printk( "CHG_PULL1 = 0x%08x\n", readl(CHG_PULL1));
 #endif
 }
-
-static void resume_reset(struct work_struct *work)
-{
-	printk("pixcir touchscreen resume reset\n\n\n");
-	pixcir_reset(300);
-}
 #endif
+
+static void pixcir_ts_timer_reset(unsigned long data)
+{
+	struct pixcir_i2c_ts_data *tsdata = (struct pixcir_i2c_ts_data *)data;
+	pixcir_do_reset(0);
+	enable_irq(tsdata->irq);
+}
+
+static void pixcir_ts_do_delay_reset(struct pixcir_i2c_ts_data *tsdata, int do_disable_irq)
+{
+	//Must do reset 1000ms after resume. This will disable irq, and it will enable_irq in timer_reset
+	if(do_disable_irq) disable_irq(tsdata->irq);
+	pixcir_do_reset(1);
+	tsdata->tmr_reset.expires = jiffies+HZ;
+	add_timer(&tsdata->tmr_reset);
+}
 
 static void pixcir_ts_poscheck(struct work_struct *work)
 {
@@ -123,7 +134,7 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	ret = i2c_master_send(tsdata->client, Wrbuf, 1);
 
 	#ifdef DEBUG
-	printk("master send ret:%d\n",ret);
+		printk("master send ret:%d\n",ret);
 	#endif
 
 	if(ret!=1){
@@ -134,7 +145,7 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	ret = i2c_master_recv(tsdata->client,Rdbuf,sizeof(Rdbuf));
 
 	#ifdef DEBUG
-	printk("master recv ret:%d\n",ret);
+		printk("master recv ret:%d\n",ret);
 	#endif
 
 	if(ret!=sizeof(Rdbuf)){
@@ -153,10 +164,8 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	posx2 = TOUCHSCREEN_MAXX - posx2;
 
 	#ifdef DEBUG
-	printk("touching:%-3d,oldtouching:%-3d,x1:%-6d,y1:%-6d,"
-         "x2:%-6d,y2:%-6d\n",
-         touching,oldtouching,posx1,posy1,
-         posx2,posy2);
+		printk("touching:%-3d,oldtouching:%-3d,x1:%-6d,y1:%-6d,x2:%-6d,y2:%-6d\n",
+			touching,oldtouching,posx1,posy1,posx2,posy2);
 	#endif
 
 	input_report_key(tsdata->input, BTN_TOUCH, (touching!=0?1:0));
@@ -268,6 +277,14 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 	tsdata->client = client;
 	tsdata->input = input;
 
+	INIT_WORK(&tsdata->work.work,pixcir_ts_poscheck);
+	//INIT_DELAYED_WORK(&tsdata->work, pixcir_ts_poscheck);
+
+	tsdata->irq = client->irq;
+#ifdef DEBUG
+	printk("irq number is %d\n", tsdata->irq);
+#endif
+
 	if(input_register_device(input)){
 		input_free_device(input);
  		kfree(tsdata);
@@ -276,46 +293,37 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 #ifdef CONFIG_MACH_EMEV
 	emxx_ts_connect();
 #endif
-
-	tsdata->reset_wq = create_singlethread_workqueue("pixcir_reset");
-	if(!tsdata->reset_wq)
-		dev_err(&client->dev, "Unable to create workqueue,\
-				touchscreen may not work after resume\n");
-
-	INIT_WORK(&tsdata->reset_work, resume_reset);
-
-	INIT_WORK(&tsdata->work.work,pixcir_ts_poscheck);
-	//INIT_DELAYED_WORK(&tsdata->work, pixcir_ts_poscheck);
-
-	tsdata->irq = client->irq;
-#ifdef DEBUG
-	printk("irq number is %d\n", tsdata->irq);
-#endif
 	if(request_irq(tsdata->irq,pixcir_ts_isr,IRQF_TRIGGER_FALLING,client->name,tsdata)){
 		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
 		input_unregister_device(input);
 		input=NULL;
 	}
+	tsdata->tmr_reset.expires  = jiffies + HZ;
+	setup_timer(&tsdata->tmr_reset, pixcir_ts_timer_reset, (unsigned long)tsdata);
 
 	device_init_wakeup(&client->dev, 0);
 
 	dev_err(&tsdata->client->dev,"insmod successfully!\n");
-#if 0
-	//hengai 2011-03-29 Press VolumeUp+Power
-	if( (gpio_get_value(GPIO_P13)==0) && (gpio_get_value(GPIO_P13)==0) ) {
-		printk("touchpanel calibrate ....\n");
+
+//#if 0
+	// VolumeUp pushed while Powering Up
+	if( (gpio_get_value(GPIO_BUTT_VOLUMEUP)==0) /*&& (gpio_get_value(GPIO_BUTT_VOLUMEUP)==0)*/ ) {
+#ifdef DEBUG
+		printk("probe VolumeUp on Power up -> calibrate\n");
+#endif
 		touchscreen_calibrate();
 	}
-#endif
+//#endif
 	return 0;
 }
 
 static int pixcir_i2c_ts_remove(struct i2c_client *client)
 {
+#ifdef DEBUG
+	printk("pixcir_i2c_ts_remove\n");
+#endif
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
 	free_irq(tsdata->irq, tsdata);
-	if(tsdata->reset_wq)
-		destroy_workqueue(tsdata->reset_wq);
 	input_unregister_device(tsdata->input);
 	kfree(tsdata);
 	dev_set_drvdata(&client->dev, NULL);
@@ -324,7 +332,11 @@ static int pixcir_i2c_ts_remove(struct i2c_client *client)
 
 static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
+#ifdef DEBUG
+	printk("pixcir_i2c_ts_suspend\n");
+#endif
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
+	disable_irq(tsdata->irq);
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(tsdata->irq);
 
@@ -333,9 +345,11 @@ static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int pixcir_i2c_ts_resume(struct i2c_client *client)
 {
+#ifdef DEBUG
+	printk("pixcir_i2c_ts_resume\n");
+#endif
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
-
-	queue_work(tsdata->reset_wq, &tsdata->reset_work);
+	pixcir_ts_do_delay_reset(tsdata, 0);	//Because it do disable_irq in suspend()
 
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(tsdata->irq);
@@ -345,11 +359,26 @@ static int pixcir_i2c_ts_resume(struct i2c_client *client)
 
 void touchscreen_calibrate(void)
 {
+#ifdef DEBUG
+	printk("touchscreen_calibrate\n");
+#endif
 	unsigned char cmd[2] = {0x37, 0x03};
 	if(m_ts && m_ts->client) {
+#ifdef DEBUG
+		printk("calibrate i2c send\n");
+#endif
 		i2c_master_send(m_ts->client, cmd, 2);
+#ifdef DEBUG
+		printk("calibrate wait\n");
+#endif
 		msleep(8000);
+#ifdef DEBUG
+		printk("calibrate reset\n");
+#endif
 		pixcir_reset(300);
+#ifdef DEBUG
+		printk("calibrate complete\n");
+#endif
 	}
 }
 EXPORT_SYMBOL(touchscreen_calibrate);
@@ -374,24 +403,21 @@ static struct i2c_driver pixcir_i2c_ts_driver = {
 
 static int __init pixcir_i2c_ts_init(void)
 {
-	#ifdef DEBUG
-		printk("pixcir_i2c_init\n");
-	#endif
-	int ret = 0;
+#ifdef DEBUG
+	printk("pixcir_i2c_init\n");
+#endif
 
 	pixcir_wq = create_singlethread_workqueue("pixcir_wq");
 	if(!pixcir_wq)
 		return -ENOMEM;
-	ret = i2c_add_driver(&pixcir_i2c_ts_driver);
-	printk("pixcir:i2c_add_driver %d \n",ret);
-	return ret;
+	return i2c_add_driver(&pixcir_i2c_ts_driver);
 }
 
 static void __exit pixcir_i2c_ts_exit(void)
 {
-	#ifdef DEBUG
-		printk("pixcir_i2c_exit\n");
-	#endif
+#ifdef DEBUG
+	printk("pixcir_i2c_exit\n");
+#endif
 
 	i2c_del_driver(&pixcir_i2c_ts_driver);
 	if(pixcir_wq)

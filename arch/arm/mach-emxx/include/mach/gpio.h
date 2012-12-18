@@ -281,6 +281,8 @@
 #define GPIO_BUTT_VOLUMEDOWN  GPIO_P14
 #define GPIO_BUTT_VOLUMEUP    GPIO_P13
 #define GPIO_BUTT_POWER       GPIO_P143
+/* Touchscreen (Pixcir) */
+#define GPIO_PIXCIR_RESET     GPIO_P97
 /* WiFi & BT control */
 #define GPIO_BCM_BT_RST       GPIO_P114
 #define GPIO_BCM_WLAN_BT_EN   GPIO_P115
