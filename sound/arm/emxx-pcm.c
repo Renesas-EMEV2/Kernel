@@ -1279,14 +1279,13 @@ static int emxx_pcm_prepare(struct snd_pcm_substream *substream)
 static snd_pcm_uframes_t emxx_pcm_pointer(struct snd_pcm_substream *substream)
 {
 	struct emxx_pcm_client *chip = snd_pcm_substream_chip(substream);
-#ifdef EMXX_PCM_USE_PDMA
+
 	struct audio_stream *s = chip->s[substream->pstr->stream];
 	struct snd_pcm_runtime *runtime = substream->runtime;
-#endif
+
 	snd_pcm_uframes_t ret;
 	FNC_ENTRY
 
-#ifdef EMXX_PCM_USE_PDMA
 	if (PCM0_TX(s)) {
 		spin_lock(&s->dma_lock);
 		if (s->output_ptr != runtime->control->appl_ptr) {
@@ -1296,7 +1295,6 @@ static snd_pcm_uframes_t emxx_pcm_pointer(struct snd_pcm_substream *substream)
 		}
 		spin_unlock(&s->dma_lock);
 	}
-#endif
 
 	ret = audio_get_dma_pos(chip->s[substream->pstr->stream]);
 	FNC_EXIT return ret;
