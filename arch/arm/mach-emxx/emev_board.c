@@ -410,9 +410,11 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_CODEC_NAME,  I2C_SLAVE_CODEC_ADDR),
 	},
+#if defined(CONFIG_SND_EMXX_SPDIF)
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_SPDIF_NAME,  I2C_SLAVE_SPDIF_ADDR),
 	},
+#endif
 #if defined(CONFIG_EMXX_NTS) || defined(CONFIG_EMXX_NTS_MODULE)
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_NTSC_ENC_NAME, I2C_SLAVE_NTSC_ENC_ADDR),
@@ -434,6 +436,12 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_I2C_PIXCIR_NAME, I2C_SLAVE_I2C_PIXCIR_ADDR),
 	  .irq = INT_GPIO_29,
+	},
+#endif
+#ifdef CONFIG_INPUT_TOUCH_BUTTON
+	{
+	  I2C_BOARD_INFO(I2C_SLAVE_I2C_BUTTON_NAME, I2C_SLAVE_I2C_BUTTON_ADDR),
+	  .irq = INT_GPIO_102,
 	},
 #endif
 };

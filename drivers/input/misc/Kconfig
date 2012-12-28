@@ -406,4 +406,11 @@ config INPUT_PCAP
 	  To compile this driver as a module, choose M here: the
 	  module will be called pcap_keys.
 
+config INPUT_TOUCH_BUTTON
+	bool "ELAN eKT2201 i2c button touchpad"
+	depends on I2C
+	help
+	  Say Y to inculde support for ELAN Microelectronics Corporation
+	  eKT2201 eFinger(TM) Button Touchpad  Controller.
+
 endif
