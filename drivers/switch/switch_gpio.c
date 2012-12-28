@@ -22,28 +22,51 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/switch.h>
-#include <linux/workqueue.h>
 #include <linux/gpio.h>
+#include <linux/irq.h>
+#include <linux/input.h>
+#include <linux/timer.h>
+
+#include <mach/gpio.h>
+#include <mach/smu.h>
+#include <asm/uaccess.h>
 
 struct gpio_switch_data {
 	struct switch_dev sdev;
 	unsigned gpio;
+	int prev_state;
+#if 0
 	const char *name_on;
 	const char *name_off;
 	const char *state_on;
 	const char *state_off;
+#endif
 	int irq;
 	struct work_struct work;
+	struct timer_list timer;
 };
 
-static void gpio_switch_work(struct work_struct *work)
+static void switch_gpio_timer_handle(unsigned long _data)
 {
 	int state;
-	struct gpio_switch_data	*data =
-		container_of(work, struct gpio_switch_data, work);
+	struct gpio_switch_data	*data = (struct gpio_switch_data *)_data;
 
-	state = gpio_get_value(data->gpio);
-	switch_set_state(&data->sdev, state);
+	state = (gpio_get_value(data->gpio)? 0 : 1);
+	if (state) {//headset inserted
+		if (data->prev_state == 0) {
+			switch_set_state(&data->sdev, state);
+			data->prev_state = state;
+			set_irq_type(data->irq, IRQF_TRIGGER_HIGH);
+		}
+
+	} else {//headset uninserted
+		if (data->prev_state == 1) {
+			switch_set_state(&data->sdev, state);
+			data->prev_state = state;
+			set_irq_type(data->irq, IRQF_TRIGGER_LOW);
+		}
+	}
+	enable_irq(data->irq);
 }
 
 static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
@@ -51,10 +74,13 @@ static irqreturn_t gpio_irq_handler(int irq, void *dev_id)
 	struct gpio_switch_data *switch_data =
 	    (struct gpio_switch_data *)dev_id;
 
-	schedule_work(&switch_data->work);
+	disable_irq_nosync(switch_data->irq);
+	mod_timer(&switch_data->timer, jiffies + msecs_to_jiffies(200));
+
 	return IRQ_HANDLED;
 }
 
+#if 0
 static ssize_t switch_gpio_print_state(struct switch_dev *sdev, char *buf)
 {
 	struct gpio_switch_data	*switch_data =
@@ -69,6 +95,7 @@ static ssize_t switch_gpio_print_state(struct switch_dev *sdev, char *buf)
 		return sprintf(buf, "%s\n", state);
 	return -1;
 }
+#endif
 
 static int gpio_switch_probe(struct platform_device *pdev)
 {
@@ -85,16 +112,20 @@ static int gpio_switch_probe(struct platform_device *pdev)
 
 	switch_data->sdev.name = pdata->name;
 	switch_data->gpio = pdata->gpio;
-	switch_data->name_on = pdata->name_on;
+/*	switch_data->name_on = pdata->name_on;
 	switch_data->name_off = pdata->name_off;
 	switch_data->state_on = pdata->state_on;
 	switch_data->state_off = pdata->state_off;
 	switch_data->sdev.print_state = switch_gpio_print_state;
-
-    ret = switch_dev_register(&switch_data->sdev);
+*/
+	ret = switch_dev_register(&switch_data->sdev);
 	if (ret < 0)
 		goto err_switch_dev_register;
 
+	switch_data->prev_state = 0;
+	setup_timer(&switch_data->timer, switch_gpio_timer_handle, (unsigned long)switch_data);
+
+	writel(readl(CHG_PULL13)|0xd000000, CHG_PULL13);
 	ret = gpio_request(switch_data->gpio, pdev->name);
 	if (ret < 0)
 		goto err_request_gpio;
@@ -103,21 +134,15 @@ static int gpio_switch_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_set_gpio_input;
 
-	INIT_WORK(&switch_data->work, gpio_switch_work);
-
 	switch_data->irq = gpio_to_irq(switch_data->gpio);
 	if (switch_data->irq < 0) {
 		ret = switch_data->irq;
 		goto err_detect_irq_num_failed;
 	}
 
-	ret = request_irq(switch_data->irq, gpio_irq_handler,
-			  IRQF_TRIGGER_LOW, pdev->name, switch_data);
+	ret = request_irq(switch_data->irq, gpio_irq_handler, IRQF_TRIGGER_LOW, pdev->name, switch_data);
 	if (ret < 0)
 		goto err_request_irq;
-
-	/* Perform initial detection */
-	gpio_switch_work(&switch_data->work);
 
 	return 0;
 
@@ -126,7 +151,8 @@ err_detect_irq_num_failed:
 err_set_gpio_input:
 	gpio_free(switch_data->gpio);
 err_request_gpio:
-    switch_dev_unregister(&switch_data->sdev);
+	del_timer_sync(&switch_data->timer);
+	switch_dev_unregister(&switch_data->sdev);
 err_switch_dev_register:
 	kfree(switch_data);
 
@@ -137,9 +163,9 @@ static int __devexit gpio_switch_remove(struct platform_device *pdev)
 {
 	struct gpio_switch_data *switch_data = platform_get_drvdata(pdev);
 
-	cancel_work_sync(&switch_data->work);
 	gpio_free(switch_data->gpio);
-    switch_dev_unregister(&switch_data->sdev);
+	del_timer_sync(&switch_data->timer);
+	switch_dev_unregister(&switch_data->sdev);
 	kfree(switch_data);
 
 	return 0;

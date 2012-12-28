@@ -151,6 +151,21 @@ static struct platform_device dm9000_device = {
 };
 #endif
 
+//headset
+#ifdef CONFIG_SWITCH_GPIO
+static struct gpio_switch_platform_data headset_switch_data = { 
+        .name = "h2w",
+        .gpio = GPIO_P8,
+};
+
+static struct platform_device headset_switch_device = { 
+        .name = "switch-gpio",
+        .dev = { 
+                .platform_data = &headset_switch_data,
+        }   
+};
+#endif
+
 /* Touch Panel */
 static struct platform_device da9052_ts_device = {
 	.name	= "da9052-ts",
@@ -390,6 +405,9 @@ static struct platform_device *devs[] __initdata = {
 	&smc91x_device,
 #elif defined(CONFIG_DM9000) || defined(CONFIG_DM9000_MODULE)
 	&dm9000_device,
+#endif
+#ifdef CONFIG_SWITCH_GPIO
+        &headset_switch_device,
 #endif
 	&da9052_ts_device,
 	&max7318_key_device,
