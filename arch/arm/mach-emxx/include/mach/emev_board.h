@@ -75,6 +75,12 @@
 #define I2C_SLAVE_I2C_AXP192_NAME	"axp192"
 #define I2C_SLAVE_I2C_AXP192_ADDR	0x34
 #endif
+#if defined(CONFIG_EMXX_SENSORS)
+#define	EMXXSENSORS_PLATFORM_NAME	"emxx_sensors_plat"
+#endif
+#if defined(CONFIG_INPUT_BMA220_G_SENSORS)//st g_sensor
+#define I2C_SLAVE_BMA220_ADDR		0x0B
+#endif                                                  
 
 
 #endif	/* __ASM_ARCH_EMEV_BOARD_H */

@@ -1,0 +1,8 @@
+config EMXX_SENSORS
+	bool "EMXX Sensors, include GSensor, MAGSensor, ..."
+	depends on I2C 
+
+config INPUT_BMA220_G_SENSORS
+	bool "BMA220 3-axis sensors"
+	depends on EMXX_SENSORS
+

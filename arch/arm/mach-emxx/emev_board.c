@@ -358,6 +358,12 @@ static struct platform_device keys_gpio = {
 };
 #endif
 
+#if defined(CONFIG_EMXX_SENSORS)
+static struct platform_device emxx_sensors_plat = {
+	.name	= EMXXSENSORS_PLATFORM_NAME,
+	.id	= -1,
+};
+#endif
 static struct platform_device *devs[] __initdata = {
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 	&smc91x_device,
@@ -384,6 +390,9 @@ static struct platform_device *devs[] __initdata = {
 
 #if defined(CONFIG_AXP192_BATTERY)
 	&axp192_battery_decive,
+#endif
+#if defined(CONFIG_EMXX_SENSORS)
+	&emxx_sensors_plat,
 #endif
 };
 
