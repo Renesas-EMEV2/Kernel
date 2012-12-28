@@ -57,7 +57,7 @@
 #include <mach/emxx_v4l2.h>
 #endif /* CONFIG_VIDEO_EMXX */
 
-/* #define EMXX_CAM_MAKING_DEBUG */
+// #define EMXX_CAM_MAKING_DEBUG 
 
 #include "emxx_cam.h"
 
@@ -530,7 +530,8 @@ static inline int camif_hw_start(void)
 	/* 229.376MHz/19=12.072MH
 	writel(0x00000012, SMU_CAMSCLKDIV); */
 	/* 229.376MHz/10=22.9376MH*/
-	writel(0x0000000A, SMU_CAMSCLKDIV);
+	//writel(0x0000000A, SMU_CAMSCLKDIV);
+	writel(0x8, SMU_CAMSCLKDIV);
 
 	emxx_open_clockgate(EMXX_CLK_CAM | EMXX_CLK_CAM_P|EMXX_CLK_CAM_S);
 	emxx_clkctrl_off(EMXX_CLKCTRL_CAMPCLK);
@@ -1306,14 +1307,13 @@ end:
 static void emxx_camif_reg_debug(void);
 
 static irqreturn_t emxx_camif_handler(int irq, void *dev_id)
-{
+{static int i;
 	int ret = 0;
 
 	FNC_ENTRY;
-	printk("emxx_camif_handler IRQ!!!!!");
+
 	camif->status = inl(CA_STATUS);
 	/* info(" status is 0x%x\n", camif->status); */
-
 
 	assert(!(~M_CA_ENSET & camif->status));
 
@@ -2114,7 +2114,7 @@ static int alloc_fixed_buffer(__u32 count, size_t blocksize,
 	d1b("(%d, %d, %p)\n", count, blocksize, buff);
 
 	for (i = count; i > 0; i--) {
-		if (frame_size > blocksize * i)
+		if (frame_size >= blocksize * i)
 			break;
 	}
 
@@ -2728,6 +2728,8 @@ static int proc_emxx_cam_read(char *page, char **start, off_t off,
 	out += sprintf(out, "V4L Driver version:       %d.%d.%d\n",
 			EMXX_CAM_MAJ_VER, EMXX_CAM_MIN_VER,
 			EMXX_CAM_PATCH_VER);
+	out += sprintf(out, "Name:%s\n", em_cam->hw.name);
+	out += sprintf(out, "Type:%s\n", "FRONT");
 
 	len = out - page;
 	len -= off;
@@ -2947,7 +2949,7 @@ static int emxx_cam_vidioc_enum_input(struct file *file, void *fh,
 	}
 
 	memset(inp, 0, sizeof(*inp));
-	strlcpy(inp->name, "cam", sizeof(inp->name));
+	strlcpy(inp->name, em_cam->hw.name, sizeof(inp->name));
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
 
 	FNC_EXIT(ret)
@@ -3190,13 +3192,12 @@ static int emxx_cam_vidioc_s_fmt_cap(struct file *file, void *fh,
 {
 	int ret = 0;
 	FNC_ENTRY;
-
+	/*
 	ret = emxx_cam_vidioc_try_fmt_cap(file, fh, f);
 	if (ret < 0) {
 		FNC_EXIT(ret)
 		return ret;
-	}
-
+	}*/
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
 	if (em_cam->mapping || em_cam->reading || em_cam->streaming) {
 #else
@@ -3227,7 +3228,7 @@ static int emxx_cam_vidioc_s_fmt_cap(struct file *file, void *fh,
 				FNC_EXIT(ret)
 				return ret;
 			}
-		}
+		}///-----------------------------------------------------------------------------------------------
 
 		if(em_cam->setup == 1)
 			cam_reset_update();
@@ -3374,7 +3375,7 @@ static int emxx_cam_vidioc_reqbufs(struct file *file, void *fh,
 	FNC_ENTRY;
 
 	if (no_active(priv->number)) {
-		warn("%s: reqbufs: no active___num is %d.\n", CAM_NAME,priv->number);
+		warn("%s: reqbufs: no active %d.\n", CAM_NAME,priv->number);
 		return -EINVAL;
 	}
 
@@ -3481,7 +3482,6 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 	__u32 bytesused, bpl;
 	struct emxx_cam_buffer *cdb;
 	FNC_ENTRY;
-
 	mutex_lock(&em_cam->lock);
 
 	if (no_active(priv->number)) {
@@ -3583,7 +3583,7 @@ static int emxx_cam_vidioc_dqbuf(struct file *file, void *fh,
 {
 	struct emxx_cam_private *priv = fh;
 	unsigned int index;
-	int ret = 0;
+	int	ret = 0;
 	unsigned int index_pull;
 	FNC_ENTRY;
 

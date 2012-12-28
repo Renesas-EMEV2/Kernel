@@ -560,16 +560,6 @@ struct v4l2_buffer {
 	struct timeval		timestamp;
 	struct v4l2_timecode	timecode;
 	__u32			sequence;
-
-#ifdef CONFIG_VIDEO_EMXX
-	unsigned short		width;	/* Decipherment image(width)  */
-	unsigned short		height;	/* Decipherment image(height) */
-	unsigned short		d_width;/* Decipherment image(Effective area) */
-#endif
-#ifdef CONFIG_VIDEO_EMXX_FILTER
-	struct v4l2_filter_option	filter;	/* resize filter */
-#endif
-
 	/* memory location */
 	enum v4l2_memory        memory;
 	union {
@@ -582,6 +572,14 @@ struct v4l2_buffer {
 	__u32			length;
 	__u32			input;
 	__u32			reserved;
+#ifdef CONFIG_VIDEO_EMXX
+		unsigned short		width;	/* Decipherment image(width)  */
+		unsigned short		height; /* Decipherment image(height) */
+		unsigned short		d_width;/* Decipherment image(Effective area) */
+#endif
+#ifdef CONFIG_VIDEO_EMXX_FILTER
+		struct v4l2_filter_option	filter; /* resize filter */
+#endif
 };
 
 #ifdef CONFIG_VIDEO_EMXX

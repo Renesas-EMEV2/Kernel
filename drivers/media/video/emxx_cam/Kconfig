@@ -1,19 +1,40 @@
 
 config VIDEO_EMXX_CAMERA
-	tristate "EMXX Video for Linux2 camera driver"
+	tristate "EMXX front camera support"
 	depends on VIDEO_DEV && MACH_EMEV
+	help
+	  SoC Camera is a common API to several cameras, not connecting
+	  over a bus like PCI or USB. For example some i2c camera connected
+	  directly to the data bus of an SoC.
 
 choice
-	prompt "Camera Device"
+	prompt "Front Camera Device"
 	depends on VIDEO_EMXX_CAMERA
+	default CAMERA_NULL_FRONT_CAMERA
 
-config VIDEO_EMXX_CAMERA_RJ6ABA100
-	boolean "RJ6ABA100"
+config EMXX_CAMERA_OV767X
+    boolean "OV767x, 0.3 mega pixels"
 
-config EMXX_CAMERA_RJ6ABA100
-	tristate
-	depends on VIDEO_EMXX_CAMERA_RJ6ABA100
-	default VIDEO_EMXX_CAMERA
+config EMXX_CAMERA_GC0307
+    boolean "GC0307, 0.3 mega pixels"
+
+config CAMERA_NULL_FRONT_CAMERA
+    boolean "Not support front camera"
 
 endchoice
 
+config VIDEO_EMXX_REAR_CAMERA
+	tristate "EMXX rear camera support"
+	depends on VIDEO_DEV && MACH_EMEV
+choice
+	prompt "Rear Camera Device"
+	depends on VIDEO_EMXX_REAR_CAMERA
+	default CAMERA_NULL_BACK_CAMERA
+
+config CAMERA_EMXX_OV3640
+    boolean "OV3640, 3.2 mega pixels"
+
+config CAMERA_NULL_BACK_CAMERA
+    boolean "Not support back camera"
+
+endchoice

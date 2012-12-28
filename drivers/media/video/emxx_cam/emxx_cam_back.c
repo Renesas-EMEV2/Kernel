@@ -61,7 +61,7 @@
 
 #include "emxx_cam.h"
 
-#define CAM_NAME "emxx_camera"
+#define CAM_NAME "emxx_back_camera"
 #define EMXX_CAM_MAX_BUFNBRS 4
 
 /* #define CAM_FPS_DEBUG */
@@ -83,7 +83,7 @@ unsigned int dma_run_cnt = ZERO_VALUE;
 /*** DEBUG code by the making ->*/
 #ifdef EMXX_CAM_MAKING_DEBUG
 
-int debug = 10;
+int debug = 4;
 
 #include <linux/moduleparam.h>
 
@@ -273,7 +273,7 @@ struct emxx_cam {
 	__u32 used_number;
 };
 
-struct emxx_cam *em_cam;
+struct emxx_cam *rear_em_cam;
 static int warming_up = 1;
 
 
@@ -300,7 +300,7 @@ struct emxx_camif {
 	__s8 crzr;
 };
 
-struct emxx_camif *camif;
+struct emxx_camif *rear_camif;
 
 #define CA_STATUS        IO_ADDRESS(EMXX_CAM_BASE + 0x0000)
 #define CA_RAWSTATUS     IO_ADDRESS(EMXX_CAM_BASE + 0x0004)
@@ -531,6 +531,7 @@ static inline int camif_hw_start(void)
 	writel(0x00000012, SMU_CAMSCLKDIV); */
 	/* 229.376MHz/10=22.9376MH*/
 	writel(0x0000000A, SMU_CAMSCLKDIV);
+	//writel(0x8, SMU_CAMSCLKDIV);
 
 	emxx_open_clockgate(EMXX_CLK_CAM | EMXX_CLK_CAM_P|EMXX_CLK_CAM_S);
 	emxx_clkctrl_off(EMXX_CLKCTRL_CAMPCLK);
@@ -655,10 +656,10 @@ static inline int cam_reset_update(void)
 	int ret = 0;
 	FNC_ENTRY;
 
-	em_cam->c = em_cam->pre.bounds;
-	em_cam->bounds = em_cam->pre.bounds;
-	em_cam->width  = camif_fmt_boundary(em_cam->fmt, em_cam->c.width);
-	em_cam->height = em_cam->c.height;
+	rear_em_cam->c = rear_em_cam->pre.bounds;
+	rear_em_cam->bounds = rear_em_cam->pre.bounds;
+	rear_em_cam->width  = camif_fmt_boundary(rear_em_cam->fmt, rear_em_cam->c.width);
+	rear_em_cam->height = rear_em_cam->c.height;
 
 	FNC_EXIT_N;
 	return ret;
@@ -669,40 +670,40 @@ static inline int camif_set_frame_setting(struct camif_reg *ca, __u32 index)
 	int ret = 0;
 
 	FNC_ENTRY;
-	switch (em_cam->fmt->pixelformat) {
+	switch (rear_em_cam->fmt->pixelformat) {
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
 	case V4L2_PIX_FMT_NV422:
-		ca->yplane_a = em_cam->grab->buff[index].padr;
-		ca->uvplane_a = ca->yplane_a + (em_cam->width * em_cam->height);
+		ca->yplane_a = rear_em_cam->grab->buff[index].padr;
+		ca->uvplane_a = ca->yplane_a + (rear_em_cam->width * rear_em_cam->height);
 		ca->vplane_a = 0;
 		break;
 	case V4L2_PIX_FMT_YUYV:
 	case V4L2_PIX_FMT_UYVY:
-		ca->yplane_a = em_cam->grab->buff[index].padr;
+		ca->yplane_a = rear_em_cam->grab->buff[index].padr;
 		ca->uvplane_a = 0;
 		ca->vplane_a = 0;
 		break;
 	case V4L2_PIX_FMT_YUV422P:
-		ca->yplane_a = em_cam->grab->buff[index].padr;
+		ca->yplane_a = rear_em_cam->grab->buff[index].padr;
 		ca->uvplane_a = ca->yplane_a +
-				(em_cam->width * em_cam->height);
+				(rear_em_cam->width * rear_em_cam->height);
 		ca->vplane_a = ca->uvplane_a +
-				(em_cam->width * em_cam->height / 2);
+				(rear_em_cam->width * rear_em_cam->height / 2);
 		break;
 	case V4L2_PIX_FMT_YUV420:
-		ca->yplane_a = em_cam->grab->buff[index].padr;
+		ca->yplane_a = rear_em_cam->grab->buff[index].padr;
 		ca->uvplane_a = ca->yplane_a +
-				(em_cam->width * em_cam->height);
+				(rear_em_cam->width * rear_em_cam->height);
 		ca->vplane_a = ca->uvplane_a +
-				(em_cam->width * em_cam->height / 4);
+				(rear_em_cam->width * rear_em_cam->height / 4);
 		break;
 	case V4L2_PIX_FMT_YVU420:
-		ca->yplane_a = em_cam->grab->buff[index].padr;
+		ca->yplane_a = rear_em_cam->grab->buff[index].padr;
 		ca->vplane_a = ca->yplane_a +
-				(em_cam->width * em_cam->height);
+				(rear_em_cam->width * rear_em_cam->height);
 		ca->uvplane_a = ca->vplane_a +
-				(em_cam->width * em_cam->height / 4);
+				(rear_em_cam->width * rear_em_cam->height / 4);
 		break;
 	default:
 		ret = -EINVAL;
@@ -717,7 +718,7 @@ static inline int camif_set_format_setting(struct camif_reg *ca)
 	int ret = 0;
 	FNC_ENTRY;
 
-	switch (em_cam->fmt->pixelformat) {
+	switch (rear_em_cam->fmt->pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
 		ca->csr |= (0x01 << S_PIXELMODE);
 		ca->od_bytelane  = 0xd8;
@@ -776,27 +777,27 @@ static inline int camif_set_output_setting(struct camif_reg *ca)
 	/* output setting : address */
 	ca->frame |= (0x01 << S_MAINFRM);
 
-	if (em_cam->width && em_cam->height) {
+	if (rear_em_cam->width && rear_em_cam->height) {
 		/* output setting : size */
-		ca->dmax_main = em_cam->width;
-		ca->dmay_main = em_cam->height;
+		ca->dmax_main = rear_em_cam->width;
+		ca->dmay_main = rear_em_cam->height;
 
-		switch (em_cam->fmt->pixelformat) {
+		switch (rear_em_cam->fmt->pixelformat) {
 		case V4L2_PIX_FMT_YUYV:
 		case V4L2_PIX_FMT_UYVY:
 		/*case V4L2_PIX_FMT_RGB565:
 		case V4L2_PIX_FMT_RGB24:*/
-			ca->linesize_main = em_cam->width * 2;
+			ca->linesize_main = rear_em_cam->width * 2;
 			break;
 		default:
-			ca->linesize_main = em_cam->width;
+			ca->linesize_main = rear_em_cam->width;
 		}
 
-		ca->xratio_main = ((em_cam->c.width - em_cam->width) * 64)
-				  / em_cam->width;
+		ca->xratio_main = ((rear_em_cam->c.width - rear_em_cam->width) * 64)
+				  / rear_em_cam->width;
 
-		ca->yratio_main = ((em_cam->c.height - em_cam->height) * 64)
-				  / em_cam->height;
+		ca->yratio_main = ((rear_em_cam->c.height - rear_em_cam->height) * 64)
+				  / rear_em_cam->height;
 	} else {
 		ret = -EINVAL;
 	}
@@ -808,27 +809,27 @@ static inline int camif_set_output_setting(struct camif_reg *ca)
 static inline int camif_set_input_setting(struct camif_reg *ca)
 {
 	int ret = 0;
-	int cpe = ((em_cam->pre.clk_edge) ? 1 : 2);
+	int cpe = ((rear_em_cam->pre.clk_edge) ? 1 : 2);
 	FNC_ENTRY;
 
 	/* input setting */
-	ca->csr |= (em_cam->pre.syncmode << S_SYNCMODE);
-	ca->csr |= (em_cam->pre.synctype << S_SYNCTYPE);
-	ca->csr |= (em_cam->pre.data_id << S_DATA_ID);
-	ca->csr |= (em_cam->pre.vs_det << S_VS_DET);
-	ca->csr |= (em_cam->pre.hs_det << S_HS_DET);
-	ca->csr |= (em_cam->pre.clk_edge << S_CLK_EDGE);
-	ca->csr |= (em_cam->pre.data_det << S_DATA_DET);
-	ca->csr |= (em_cam->pre.vs_pol << S_VS_POL);
-	ca->csr |= (em_cam->pre.hs_pol << S_HS_POL);
+	ca->csr |= (rear_em_cam->pre.syncmode << S_SYNCMODE);
+	ca->csr |= (rear_em_cam->pre.synctype << S_SYNCTYPE);
+	ca->csr |= (rear_em_cam->pre.data_id << S_DATA_ID);
+	ca->csr |= (rear_em_cam->pre.vs_det << S_VS_DET);
+	ca->csr |= (rear_em_cam->pre.hs_det << S_HS_DET);
+	ca->csr |= (rear_em_cam->pre.clk_edge << S_CLK_EDGE);
+	ca->csr |= (rear_em_cam->pre.data_det << S_DATA_DET);
+	ca->csr |= (rear_em_cam->pre.vs_pol << S_VS_POL);
+	ca->csr |= (rear_em_cam->pre.hs_pol << S_HS_POL);
 	ca->csr |= (0x00 << S_LIMITSEL); /* ITU-R BT656(601) */
 
 	/* input setting : range */
-	ca->x1r = em_cam->pre.c.left * cpe;
-	ca->x2r = (em_cam->pre.c.left + em_cam->pre.c.width) * cpe;
-	ca->x3r = (em_cam->pre.bounds.left + em_cam->pre.bounds.width) * cpe;
-	ca->y1r = em_cam->pre.c.top;
-	ca->y2r = em_cam->pre.c.top + em_cam->pre.c.height;
+	ca->x1r = rear_em_cam->pre.c.left * cpe;
+	ca->x2r = (rear_em_cam->pre.c.left + rear_em_cam->pre.c.width) * cpe;
+	ca->x3r = (rear_em_cam->pre.bounds.left + rear_em_cam->pre.bounds.width) * cpe;
+	ca->y1r = rear_em_cam->pre.c.top;
+	ca->y2r = rear_em_cam->pre.c.top + rear_em_cam->pre.c.height;
 
 	FNC_EXIT_N;
 	return ret;
@@ -1016,8 +1017,8 @@ static inline int camif_set_ca_mirror(__u8 val)
 
 	outl(camif_ca_mirror_menus[val].value, CA_MIRROR);
 
-	camif->mirror = val;
-	camif->update = 1;
+	rear_camif->mirror = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1029,8 +1030,8 @@ static inline int camif_set_ca_bngr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_BNGR);
-	camif->bngr = val;
-	camif->update = 1;
+	rear_camif->bngr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1042,8 +1043,8 @@ static inline int camif_set_ca_cbgr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_CBGR);
-	camif->cbgr = val;
-	camif->update = 1;
+	rear_camif->cbgr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1055,8 +1056,8 @@ static inline int camif_set_ca_crgr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_CRGR);
-	camif->crgr = val;
-	camif->update = 1;
+	rear_camif->crgr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1068,8 +1069,8 @@ static inline int camif_set_ca_bnzr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_BNZR);
-	camif->bnzr = val;
-	camif->update = 1;
+	rear_camif->bnzr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1081,8 +1082,8 @@ static inline int camif_set_ca_cbzr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_CBZR);
-	camif->cbzr = val;
-	camif->update = 1;
+	rear_camif->cbzr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1094,8 +1095,8 @@ static inline int camif_set_ca_crzr(__u8 val)
 	FNC_ENTRY;
 
 	outl(val, CA_CRZR);
-	camif->crzr = val;
-	camif->update = 1;
+	rear_camif->crzr = val;
+	rear_camif->update = 1;
 
 	FNC_EXIT_N;
 	return 0;
@@ -1125,8 +1126,8 @@ static int emxx_camif_vidioc_queryctrl(struct file *file, void *fh,
 
 	if (a->id <  EMXX_CID_CA_MIRROR ||
 	    a->id > EMXX_CID_CA_CRZR) {
-		if (em_cam->hw.vidioc_queryctrl)
-			ret = em_cam->hw.vidioc_queryctrl(file, fh, a);
+		if (rear_em_cam->hw.vidioc_queryctrl)
+			ret = rear_em_cam->hw.vidioc_queryctrl(file, fh, a);
 		else
 			ret = -EINVAL;
 	} else {
@@ -1156,8 +1157,8 @@ static int emxx_camif_vidioc_querymenu(struct file *file, void *fh,
 		strcpy(m->name, camif_ca_mirror_menus[m->index].name);
 		break;
 	default:
-		if (em_cam->hw.vidioc_querymenu)
-			ret = em_cam->hw.vidioc_querymenu(file, fh, m);
+		if (rear_em_cam->hw.vidioc_querymenu)
+			ret = rear_em_cam->hw.vidioc_querymenu(file, fh, m);
 		else
 			ret = -EINVAL;
 		break;
@@ -1176,8 +1177,8 @@ static int emxx_camif_vidioc_g_ctrl(struct file *file, void *fh,
 
 	ctrl = camif_ctrl_by_id(c->id);
 	if (NULL == ctrl) {
-		if (em_cam->hw.vidioc_g_ctrl)
-			ret = em_cam->hw.vidioc_g_ctrl(file, fh, c);
+		if (rear_em_cam->hw.vidioc_g_ctrl)
+			ret = rear_em_cam->hw.vidioc_g_ctrl(file, fh, c);
 		else
 			ret = -EINVAL;
 		FNC_EXIT(ret)
@@ -1185,25 +1186,25 @@ static int emxx_camif_vidioc_g_ctrl(struct file *file, void *fh,
 	}
 	switch (c->id) {
 	case EMXX_CID_CA_MIRROR:
-		c->value = camif->mirror;
+		c->value = rear_camif->mirror;
 		break;
 	case EMXX_CID_CA_BNGR:
-		c->value = camif->bngr;
+		c->value = rear_camif->bngr;
 		break;
 	case EMXX_CID_CA_CBGR:
-		c->value = camif->cbgr;
+		c->value = rear_camif->cbgr;
 		break;
 	case EMXX_CID_CA_CRGR:
-		c->value = camif->crgr;
+		c->value = rear_camif->crgr;
 		break;
 	case EMXX_CID_CA_BNZR:
-		c->value = camif->bnzr;
+		c->value = rear_camif->bnzr;
 		break;
 	case EMXX_CID_CA_CBZR:
-		c->value = camif->cbzr;
+		c->value = rear_camif->cbzr;
 		break;
 	case EMXX_CID_CA_CRZR:
-		c->value = camif->crzr;
+		c->value = rear_camif->crzr;
 		break;
 	default:
 		ret = -EINVAL;
@@ -1223,27 +1224,27 @@ static int emxx_camif_vidioc_s_ctrl(struct file *file, void *fh,
 
 	ctrl = camif_ctrl_by_id(c->id);
 	if (NULL == ctrl) {
-		if (em_cam->hw.vidioc_s_ctrl) {
+		if (rear_em_cam->hw.vidioc_s_ctrl) {
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-			moving = ((em_cam->mapping
-				   | em_cam->reading
-				   | em_cam->streaming) ? 1 : 0);
+			moving = ((rear_em_cam->mapping
+				   | rear_em_cam->reading
+				   | rear_em_cam->streaming) ? 1 : 0);
 #else
-			moving = (em_cam->streaming ? 1 : 0);
+			moving = (rear_em_cam->streaming ? 1 : 0);
 #endif
-			ret = em_cam->hw.vidioc_s_ctrl(file, (void *)moving, c);
+			ret = rear_em_cam->hw.vidioc_s_ctrl(file, (void *)moving, c);
 			if (!ret) {
-				if (em_cam->hw.prepare) {
-					em_cam->pre.actions = 0;
-					ret = em_cam->hw.prepare(&em_cam->pre);
+				if (rear_em_cam->hw.prepare) {
+					rear_em_cam->pre.actions = 0;
+					ret = rear_em_cam->hw.prepare(&rear_em_cam->pre);
 					if (ret) {
 						d1b("stop\n");
-						em_cam->stop = 1;
+						rear_em_cam->stop = 1;
 						goto end;
 					}
-					if (em_cam->pre.reset) {
+					if (rear_em_cam->pre.reset) {
 						cam_reset_update();
-						em_cam->reset = 1;
+						rear_em_cam->reset = 1;
 					}
 				}
 			}
@@ -1265,7 +1266,7 @@ static int emxx_camif_vidioc_s_ctrl(struct file *file, void *fh,
 	default:
 		/* nothing */;
 	}
-	mutex_lock(&camif->lock);
+	mutex_lock(&rear_camif->lock);
 	switch (c->id) {
 	case EMXX_CID_CA_MIRROR:
 		ret = camif_set_ca_mirror(c->value);
@@ -1291,12 +1292,12 @@ static int emxx_camif_vidioc_s_ctrl(struct file *file, void *fh,
 	default:
 		ret = -EINVAL;
 	}
-	if (camif->update) {
+	if (rear_camif->update) {
 		d1b(" update the UPDATE register!!!!!!\n");
 		outl(1, CA_UPDATE);
-		camif->update = 0;
+		rear_camif->update = 0;
 	}
-	mutex_unlock(&camif->lock);
+	mutex_unlock(&rear_camif->lock);
 
 end:
 	FNC_EXIT(ret)
@@ -1310,20 +1311,20 @@ static irqreturn_t emxx_camif_handler(int irq, void *dev_id)
 	int ret = 0;
 
 	FNC_ENTRY;
-	printk("emxx_camif_handler IRQ!!!!!");
-	camif->status = inl(CA_STATUS);
-	/* info(" status is 0x%x\n", camif->status); */
+
+	rear_camif->status = inl(CA_STATUS);
+	/* info(" status is 0x%x\n", rear_camif->status); */
 
 
-	assert(!(~M_CA_ENSET & camif->status));
+	assert(!(~M_CA_ENSET & rear_camif->status));
 
-	em_cam->status = camif->status;
+	rear_em_cam->status = rear_camif->status;
 
-	if (B_MAINOR & camif->status) {
+	if (B_MAINOR & rear_camif->status) {
 		err("%s: MAINOR fault.\n", CAM_NAME);
 		ret = IRQ_HANDLED;
 	}
-	if (B_DMAERR & camif->status) {
+	if (B_DMAERR & rear_camif->status) {
 		err("%s: DMAERR fault.\n", CAM_NAME);
 		ret = IRQ_HANDLED;
 	}
@@ -1333,31 +1334,31 @@ static irqreturn_t emxx_camif_handler(int irq, void *dev_id)
 
 		outl(M_CA_ENSET, CA_FFCLR);
 
-		if (em_cam->grab->update)
-			em_cam->grab->update(em_cam);
+		if (rear_em_cam->grab->update)
+			rear_em_cam->grab->update(rear_em_cam);
 		return ret;
 	}
 
 	ret = IRQ_HANDLED;
 
-	if (B_CAMVS & camif->status) {
+	if (B_CAMVS & rear_camif->status) {
 		d1b(" B_CAMVS !\n");
 #ifdef CAM_FPS_DEBUG
 		vsync_detect_cnt++;
 #endif
 	}
 
-	if (B_MAINTC & camif->status) {
+	if (B_MAINTC & rear_camif->status) {
 		d1b(" B_MAINTC !\n");
 #ifdef CAM_FPS_DEBUG
 		transmit_end_cnt++;
 #endif
 		/* emxx_camif_reg_debug();*/
-		if (em_cam->grab->update)
-			em_cam->grab->update(em_cam);
+		if (rear_em_cam->grab->update)
+			rear_em_cam->grab->update(rear_em_cam);
 	}
 
-	outl(camif->status, CA_FFCLR);
+	outl(rear_camif->status, CA_FFCLR);
 
 	FNC_EXIT_N;
 	return ret;
@@ -1416,10 +1417,10 @@ static int emxx_camif_prepare(__u32 index)
 	int ret = 0;
 	FNC_ENTRY;
 
-	if (em_cam->setup) {
-		em_cam->pre.width = em_cam->width;
-		em_cam->pre.height = em_cam->height;
-		em_cam->pre.c = em_cam->c;
+	if (rear_em_cam->setup) {
+		rear_em_cam->pre.width = rear_em_cam->width;
+		rear_em_cam->pre.height = rear_em_cam->height;
+		rear_em_cam->pre.c = rear_em_cam->c;
 
 		ret = emxx_camif_restart(0);
 
@@ -1430,7 +1431,7 @@ static int emxx_camif_prepare(__u32 index)
 
 		/* ret = camif_set_frame(0); */
 		outl(1, CA_UPDATE);
-		em_cam->setup = 0;
+		rear_em_cam->setup = 0;
 	}
 
 	ret = camif_set_frame(index, 0);
@@ -1444,8 +1445,8 @@ static void emxx_camif_buffer_debug(unsigned int index)
 {
 	unsigned int i = 0;
 	unsigned int j;
-	unsigned int length = em_cam->width*em_cam->width;
-	char *addr_y = em_cam->grab->buff[index].vadr;
+	unsigned int length = rear_em_cam->width*rear_em_cam->width;
+	char *addr_y = rear_em_cam->grab->buff[index].vadr;
 	FNC_ENTRY;
 
 	for (i = 0; i < length; i++) {
@@ -1533,7 +1534,7 @@ static int emxx_camif_startup(void)
 
 	/* request irq handler*/
 	ret = request_irq(INT_CAM, emxx_camif_handler,
-			  IRQF_DISABLED, "CAMIF", (void *)em_cam);
+			  IRQF_DISABLED, "CAMIF", (void *)rear_em_cam);
 
 	if (ret) {
 		FNC_EXIT(-ENODEV)
@@ -1550,13 +1551,13 @@ static int emxx_camif_startup(void)
 
 	{
 		/* update parameters */
-		outl(camif_ca_mirror_menus[camif->mirror].value, CA_MIRROR);
-		outl(camif->bngr, CA_BNGR);
-		outl(camif->cbgr, CA_CBGR);
-		outl(camif->crgr, CA_CRGR);
-		outl(camif->bnzr, CA_BNZR);
-		outl(camif->cbzr, CA_CBZR);
-		outl(camif->crzr, CA_CRZR);
+		outl(camif_ca_mirror_menus[rear_camif->mirror].value, CA_MIRROR);
+		outl(rear_camif->bngr, CA_BNGR);
+		outl(rear_camif->cbgr, CA_CBGR);
+		outl(rear_camif->crgr, CA_CRGR);
+		outl(rear_camif->bnzr, CA_BNZR);
+		outl(rear_camif->cbzr, CA_CBZR);
+		outl(rear_camif->crzr, CA_CRZR);
 		outl(1, CA_UPDATE);
 	}
 
@@ -1572,7 +1573,7 @@ static int emxx_camif_shutdown(int flag)
 	/* irq */
 	outl(0, CA_ENSET);
 	camif_irq_enclr();
-	free_irq(INT_CAM, (void *)em_cam);
+	free_irq(INT_CAM, (void *)rear_em_cam);
 
 	/* module reset */
 	outl(0, CA_MODULECONT);
@@ -1593,8 +1594,8 @@ static int emxx_camif_unregister(void)
 	int ret = 0;
 	FNC_ENTRY;
 
-	kfree(camif);
-	camif = NULL;
+	kfree(rear_camif);
+	rear_camif = NULL;
 
 	FNC_EXIT(ret)
 	return ret;
@@ -1606,34 +1607,34 @@ static int emxx_camif_register(void)
 	const struct v4l2_queryctrl *ctrl;
 	FNC_ENTRY;
 
-	camif = kzalloc(sizeof(*camif), GFP_KERNEL);
+	rear_camif = kzalloc(sizeof(*rear_camif), GFP_KERNEL);
 
-	if (NULL == camif)
+	if (NULL == rear_camif)
 		return -ENOMEM;
 
 	/* initial camif */
-	mutex_init(&camif->lock);
+	mutex_init(&rear_camif->lock);
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_MIRROR);
-	camif->mirror  = ctrl->default_value;
+	rear_camif->mirror  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_BNGR);
-	camif->bngr  = ctrl->default_value;
+	rear_camif->bngr  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_CBGR);
-	camif->cbgr  = ctrl->default_value;
+	rear_camif->cbgr  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_CRGR);
-	camif->crgr  = ctrl->default_value;
+	rear_camif->crgr  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_BNZR);
-	camif->bnzr  = ctrl->default_value;
+	rear_camif->bnzr  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_CBZR);
-	camif->cbzr  = ctrl->default_value;
+	rear_camif->cbzr  = ctrl->default_value;
 
 	ctrl = camif_ctrl_by_id(EMXX_CID_CA_CRZR);
-	camif->crzr  = ctrl->default_value;
+	rear_camif->crzr  = ctrl->default_value;
 
 	FNC_EXIT_N;
 	return ret;
@@ -1644,7 +1645,7 @@ static int emxx_camif_register(void)
  */
 static inline int no_active(__u32 number)
 {
-	return (em_cam->active_number == number) ? 0 : 1;
+	return (rear_em_cam->active_number == number) ? 0 : 1;
 }
 
 static const struct v4l2_queryctrl cam_ctrls[] = {
@@ -1893,16 +1894,16 @@ static inline void deq_done_pushq(unsigned int q, int done)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_in_locked(&em_cam->deq_done->kfifo, (void *)&q,
-				sizeof(int), &em_cam->deq_done->lock);
+	ret = kfifo_in_locked(&rear_em_cam->deq_done->kfifo, (void *)&q,
+				sizeof(int), &rear_em_cam->deq_done->lock);
 
 	assert(1 == (ret / sizeof(int)));
 	d2b("deq_done_pushq: %d\n", q);
 
 	if (done)
-		em_cam->grab->buff[q].state = CAM_BUF_DONE;
+		rear_em_cam->grab->buff[q].state = CAM_BUF_DONE;
 	else
-		em_cam->grab->buff[q].state = CAM_BUF_BREAK;
+		rear_em_cam->grab->buff[q].state = CAM_BUF_BREAK;
 
 	FNC_EXIT_N;
 	return;
@@ -1914,8 +1915,8 @@ static inline unsigned int deq_done_pullq(void)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_out_locked(&em_cam->deq_done->kfifo, (void *)&buf,
-				sizeof(int), &em_cam->deq_done->lock);
+	ret = kfifo_out_locked(&rear_em_cam->deq_done->kfifo, (void *)&buf,
+				sizeof(int), &rear_em_cam->deq_done->lock);
 
 	assert(1 == (ret / sizeof(int)));
 #ifdef CAM_FPS_DEBUG
@@ -1923,7 +1924,7 @@ static inline unsigned int deq_done_pullq(void)
 #endif
 	d2b("deq_done_pullq: %d\n", buf);
 
-	em_cam->grab->buff[buf].state = CAM_BUF_IDLE;
+	rear_em_cam->grab->buff[buf].state = CAM_BUF_IDLE;
 	FNC_EXIT_N;
 	return buf;
 }
@@ -1931,7 +1932,7 @@ static inline unsigned int deq_done_pullq(void)
 static inline unsigned int deq_done_peepq(unsigned int *q)
 {
 	FNC_ENTRY;
-	return kfifo_try_get(em_cam->deq_done, (unsigned char *)q, sizeof(int));
+	return kfifo_try_get(rear_em_cam->deq_done, (unsigned char *)q, sizeof(int));
 }
 
 
@@ -1940,19 +1941,19 @@ static inline void grab_pushq(unsigned int q)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_in_locked(&em_cam->grab->enq->kfifo, (void *)&q,
-				sizeof(int), &em_cam->grab->enq->lock);
+	ret = kfifo_in_locked(&rear_em_cam->grab->enq->kfifo, (void *)&q,
+				sizeof(int), &rear_em_cam->grab->enq->lock);
 
 	assert(1 == (ret / sizeof(int)));
 
-	em_cam->grab->cnt++;
-	if (em_cam->grab->cnt >= em_cam->grab->max)
-		em_cam->grab->cnt = 0;
+	rear_em_cam->grab->cnt++;
+	if (rear_em_cam->grab->cnt >= rear_em_cam->grab->max)
+		rear_em_cam->grab->cnt = 0;
 
 #ifdef CAM_FPS_DEBUG
 	grab_push_cnt++;
 #endif
-	em_cam->grab->buff[q].state = CAM_BUF_GRABBING;
+	rear_em_cam->grab->buff[q].state = CAM_BUF_GRABBING;
 	d2b("grab_pushq: %d\n", q);
 	FNC_EXIT_N;
 	return;
@@ -1964,8 +1965,8 @@ static inline unsigned int grab_pullq(void)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_out_locked(&em_cam->grab->enq->kfifo, (void *)&buf,
-				sizeof(int), &em_cam->grab->enq->lock);
+	ret = kfifo_out_locked(&rear_em_cam->grab->enq->kfifo, (void *)&buf,
+				sizeof(int), &rear_em_cam->grab->enq->lock);
 
 	assert(1 == (ret / sizeof(int)));
 
@@ -1981,7 +1982,7 @@ static inline unsigned int grab_pullq(void)
 static inline unsigned int grab_peepq(unsigned int *q)
 {
 	FNC_ENTRY;
-	return kfifo_try_get(em_cam->grab->enq, (unsigned char *)q,
+	return kfifo_try_get(rear_em_cam->grab->enq, (unsigned char *)q,
 			     sizeof(int));
 }
 
@@ -1990,12 +1991,12 @@ static inline void queing_pushq(unsigned int q)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_in_locked(&em_cam->grab->queingq->kfifo, (void *)&q,
-				sizeof(int), &em_cam->grab->queingq->lock);
+	ret = kfifo_in_locked(&rear_em_cam->grab->queingq->kfifo, (void *)&q,
+				sizeof(int), &rear_em_cam->grab->queingq->lock);
 
 	assert(1 == (ret / sizeof(int)));
 
-	em_cam->grab->buff[q].state = CAM_BUF_QUEUED;
+	rear_em_cam->grab->buff[q].state = CAM_BUF_QUEUED;
 
 	FNC_EXIT_N;
 	return;
@@ -2007,8 +2008,8 @@ static inline unsigned int queing_pullq(void)
 	unsigned int ret;
 	FNC_ENTRY;
 
-	ret = kfifo_out_locked(&em_cam->grab->queingq->kfifo, (void *)&buf,
-				sizeof(int), &em_cam->grab->queingq->lock);
+	ret = kfifo_out_locked(&rear_em_cam->grab->queingq->kfifo, (void *)&buf,
+				sizeof(int), &rear_em_cam->grab->queingq->lock);
 
 	assert(1 == (ret / sizeof(int)));
 
@@ -2021,7 +2022,7 @@ static inline unsigned int queing_pullq(void)
 
 static inline unsigned int queing_peepq(unsigned int *q)
 {
-	return kfifo_try_get(em_cam->grab->queingq, (unsigned char *)q,
+	return kfifo_try_get(rear_em_cam->grab->queingq, (unsigned char *)q,
 			     sizeof(int));
 }
 
@@ -2114,7 +2115,7 @@ static int alloc_fixed_buffer(__u32 count, size_t blocksize,
 	d1b("(%d, %d, %p)\n", count, blocksize, buff);
 
 	for (i = count; i > 0; i--) {
-		if (frame_size > blocksize * i)
+		if (frame_size >= blocksize * i)
 			break;
 	}
 
@@ -2148,7 +2149,7 @@ static void release_frame_buff(struct emxx_cam_frames *frm)
 		free_fixed_buffer(frm);
 	} else {
 		release_frm_userptr(frm);
-		em_cam->userptr   = 0;
+		rear_em_cam->userptr   = 0;
 	}
 
 	frm->max = 0;
@@ -2168,22 +2169,22 @@ static int request_frame_buff(struct emxx_cam_frames *frm,
 	__u32 blocksize, bpl;
 	FNC_ENTRY;
 
-	frm->buff = kzalloc(count * sizeof(*em_cam->grab->buff), GFP_KERNEL);
+	frm->buff = kzalloc(count * sizeof(*rear_em_cam->grab->buff), GFP_KERNEL);
 
 	if (NULL == frm->buff) {
 		err("%s: frame info allocation failed\n", CAM_NAME);
 		return 0;
 	}
 
-	blocksize = get_sizeimage(fmt, em_cam->bounds.width,
-				  em_cam->bounds.height, &bpl);
+	blocksize = get_sizeimage(fmt, rear_em_cam->bounds.width,
+				  rear_em_cam->bounds.height, &bpl);
 
 	blocksize = PAGE_ALIGN(blocksize);
 
 	if (V4L2_MEMORY_MMAP == memory)
 		count = alloc_fixed_buffer(count, blocksize, frm->buff);
 	else
-		em_cam->userptr   = 1;
+		rear_em_cam->userptr   = 1;
 
 	if (count) {
 		frm->max = count;
@@ -2209,10 +2210,10 @@ static void cam_release_buffers(int flag)
 {
 	FNC_ENTRY;
 
-	if (!em_cam->grab)
+	if (!rear_em_cam->grab)
 		goto out_release_buffers;
 
-	release_frame_buff(em_cam->grab);
+	release_frame_buff(rear_em_cam->grab);
 	camera_frame_offset = 0;
 
 out_release_buffers:
@@ -2229,12 +2230,12 @@ static int cam_request_buffers(int action, __u32 count,
 	int i = 0;
 	FNC_ENTRY;
 
-	i = request_frame_buff(em_cam->grab, count, em_cam->fmt,
+	i = request_frame_buff(rear_em_cam->grab, count, rear_em_cam->fmt,
 				       memory, BUF_FIXED);
 
 	if (i) {
-		d1b("request %d buffers\n", em_cam->grab->max);
-		em_cam->reset = 0;
+		d1b("request %d buffers\n", rear_em_cam->grab->max);
+		rear_em_cam->reset = 0;
 	} else
 		ret = -ENOMEM;
 
@@ -2250,11 +2251,11 @@ static int cam_choice_function(int action)
 	int ret = 0;
 	FNC_ENTRY;
 
-	assert(em_cam->grab);
+	assert(rear_em_cam->grab);
 
-	switch (em_cam->fmt->pixelformat) {
+	switch (rear_em_cam->fmt->pixelformat) {
 	default:
-		em_cam->grab->update = emxx_cam_grabs_handler;
+		rear_em_cam->grab->update = emxx_cam_grabs_handler;
 	}
 
 	FNC_EXIT_N;
@@ -2264,23 +2265,23 @@ static int cam_choice_function(int action)
 static inline void cam_buffer_status(struct v4l2_buffer *b,
 				     __u32 index, enum v4l2_buf_type type)
 {
-	struct emxx_cam_buffer *cdb = &em_cam->grab->buff[index];
+	struct emxx_cam_buffer *cdb = &rear_em_cam->grab->buff[index];
 	FNC_ENTRY;
 
 	b->index    = index;
 	b->type     = type;
-	b->memory   = em_cam->grab->memory;
+	b->memory   = rear_em_cam->grab->memory;
 
 	switch (b->memory) {
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
 	case V4L2_MEMORY_MMAP:
 		b->m.offset  = cdb->m.offset;
-		b->length    = em_cam->grab->blocksize;
+		b->length    = rear_em_cam->grab->blocksize;
 		break;
 #endif
 	case V4L2_MEMORY_USERPTR:
 		b->m.userptr = cdb->m.userptr;
-		b->length    = em_cam->grab->blocksize;
+		b->length    = rear_em_cam->grab->blocksize;
 		break;
 	default:
 		/* nothing */;
@@ -2344,14 +2345,14 @@ static inline int cam_waiton(struct emxx_cam *cam, int *index,
 			}
 		} else if (timeout_msec > 0) {
 			timeout = wait_event_interruptible_timeout(
-					em_cam->grab->proc_list,
+					rear_em_cam->grab->proc_list,
 					deq_done_peepq(&peep_index), timeout);
 			if (timeout <= 0) {
 				ret = -ETIMEDOUT;
 				break;
 			}
 		} else {
-			wait_event_interruptible(em_cam->grab->proc_list,
+			wait_event_interruptible(rear_em_cam->grab->proc_list,
 					deq_done_peepq(&peep_index));
 		}
 
@@ -2389,13 +2390,13 @@ static inline int cam_stop(int flag)
 	unsigned int i, index;
 	FNC_ENTRY;
 
-	em_cam->stop = 1;
+	rear_em_cam->stop = 1;
 
 	emxx_camif_stop_capture(0);
 
-	kfifo_reset(&em_cam->grab->queingq->kfifo);
+	kfifo_reset(&rear_em_cam->grab->queingq->kfifo);
 	while (grab_peepq(&index) || deq_done_peepq(&index)) {
-		if (cam_waiton(em_cam, &index, 0, 10 * 1000))
+		if (cam_waiton(rear_em_cam, &index, 0, 10 * 1000))
 			break;
 
 		deq_done_pullq();
@@ -2411,14 +2412,14 @@ static inline int cam_stop(int flag)
 		msleep(1);
 	}
 
-	kfifo_reset(&em_cam->grab->enq->kfifo);
-	kfifo_reset(&em_cam->deq_done->kfifo);
+	kfifo_reset(&rear_em_cam->grab->enq->kfifo);
+	kfifo_reset(&rear_em_cam->deq_done->kfifo);
 
-	if (em_cam->hw.stream_off)
-		ret = em_cam->hw.stream_off(0);
+	if (rear_em_cam->hw.stream_off)
+		ret = rear_em_cam->hw.stream_off(0);
 
 	if (ret == 0)
-		em_cam->stop = 0;
+		rear_em_cam->stop = 0;
 
 	FNC_EXIT(ret)
 	return ret;
@@ -2437,23 +2438,23 @@ static inline int cam_stream(int flag)
 		/* change pin select */
 		camif_chg_pinsel(1);
 
-		if (em_cam->hw.stream_on) {
-			ret = em_cam->hw.stream_on(0);
+		if (rear_em_cam->hw.stream_on) {
+			ret = rear_em_cam->hw.stream_on(0);
 			if (ret) {
 				d1b("stop\n");
-				em_cam->stop = 1;
+				rear_em_cam->stop = 1;
 			}
 		}
 
 		mdelay(10);
 
 	/* create and wake a thread */
-		th = kthread_run(emxx_cam_thread, &em_cam, "emxx_cam_thread");
+		th = kthread_run(emxx_cam_thread, &rear_em_cam, "emxx_cam_thread");
 		if (IS_ERR(th)) {
 			err("%s:  kernel_thread() failed\n", CAM_NAME);
 			return PTR_ERR(th);
 		}
-		em_cam->th = th;
+		rear_em_cam->th = th;
 
 		if (warming_up) {
 			schedule_timeout_uninterruptible(HZ);
@@ -2461,10 +2462,10 @@ static inline int cam_stream(int flag)
 		}
 
 	} else {
-		if (em_cam->th) {
-			ret = kthread_stop(em_cam->th);
-			em_cam->th = NULL;
-			wake_up_interruptible(&em_cam->grab->cam_queing_waitq);
+		if (rear_em_cam->th) {
+			ret = kthread_stop(rear_em_cam->th);
+			rear_em_cam->th = NULL;
+			wake_up_interruptible(&rear_em_cam->grab->cam_queing_waitq);
 		}
 		cam_stop(0);
 		camif_chg_pinsel(0);
@@ -2481,7 +2482,7 @@ static inline int cam_capture(int flag)
 	unsigned long flags;
 	FNC_ENTRY;
 
-	if (em_cam->stop) {
+	if (rear_em_cam->stop) {
 		d3b(" stop\n");
 		return -EIO;
 	}
@@ -2500,30 +2501,30 @@ static inline int cam_capture(int flag)
 	if (!queing_peepq(&index))
 		return ret;
 
-	if (CAM_BUF_QUEUED != em_cam->grab->buff[index].state) {
-		d3b("C3-%d-%d", index, em_cam->grab->buff[index].state);
+	if (CAM_BUF_QUEUED != rear_em_cam->grab->buff[index].state) {
+		d3b("C3-%d-%d", index, rear_em_cam->grab->buff[index].state);
 		return ret;
 	}
 
-	if (em_cam->frames_active) {
+	if (rear_em_cam->frames_active) {
 		d3b("C4");
 		return ret;
 	}
 
-	if (em_cam->hw.prepare) {
-		em_cam->pre.actions = 1;
-		ret = em_cam->hw.prepare(&em_cam->pre);
+	if (rear_em_cam->hw.prepare) {
+		rear_em_cam->pre.actions = 1;
+		ret = rear_em_cam->hw.prepare(&rear_em_cam->pre);
 		if (ret) {
 			d1b("stop\n");
-			em_cam->stop = 1;
+			rear_em_cam->stop = 1;
 			d3b("C5");
 			return ret;
 		}
 	}
 
-	if (em_cam->pre.reset) {
+	if (rear_em_cam->pre.reset) {
 		d1b("stop\n");
-		em_cam->stop = 1;
+		rear_em_cam->stop = 1;
 		d3b("C6");
 		return ret;
 	}
@@ -2536,31 +2537,31 @@ static inline int cam_capture(int flag)
 	ret = emxx_camif_prepare(index);
 	if (ret) {
 		d1b("stop\n");
-		em_cam->stop = 1;
+		rear_em_cam->stop = 1;
 		return ret;
 	}
 
-	if (em_cam->hw.trigger) {
-		ret = em_cam->hw.trigger(0);
+	if (rear_em_cam->hw.trigger) {
+		ret = rear_em_cam->hw.trigger(0);
 		if (ret) {
 			d1b("stop\n");
-			em_cam->stop = 1;
+			rear_em_cam->stop = 1;
 			return ret;
 		}
 	}
 
-	spin_lock_irqsave(&em_cam->cam_lock, flags);
+	spin_lock_irqsave(&rear_em_cam->cam_lock, flags);
 	index = queing_pullq();
 	grab_pushq(index);
-	em_cam->frames_active = 1;
+	rear_em_cam->frames_active = 1;
 	ret = emxx_camif_capture(0);
 	if (ret) {
 		d1b("stop\n");
-		em_cam->stop = 1;
+		rear_em_cam->stop = 1;
 		return ret;
 	}
 
-	spin_unlock_irqrestore(&em_cam->cam_lock, flags);
+	spin_unlock_irqrestore(&rear_em_cam->cam_lock, flags);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -2571,7 +2572,7 @@ static inline int cam_sync(int flag)
 	int ret = 0;
 	FNC_ENTRY;
 
-	if (!em_cam->frames_active)
+	if (!rear_em_cam->frames_active)
 		return ret;
 
 	/* assert(0 == emxx_camif_running(0)); */
@@ -2589,25 +2590,25 @@ static inline int cam_sync(int flag)
 		/* assert(0 != i); */
 	}
 
-	if (em_cam->hw.sync) {
-		em_cam->pre.actions = 1;
-		ret = em_cam->hw.sync(&em_cam->pre);
+	if (rear_em_cam->hw.sync) {
+		rear_em_cam->pre.actions = 1;
+		ret = rear_em_cam->hw.sync(&rear_em_cam->pre);
 		if (ret) {
 			d1b("stop\n");
-			em_cam->stop = 1;
+			rear_em_cam->stop = 1;
 			d3b("S-1\n");
 			return ret;
 		}
 	}
 
-	if (em_cam->pre.actions) {
+	if (rear_em_cam->pre.actions) {
 		ret = emxx_camif_restart(0);
 		if (ret)
 			d3b("S-2\n");
-		em_cam->setup = 1;
+		rear_em_cam->setup = 1;
 	}
 
-	em_cam->frames_active = 0;
+	rear_em_cam->frames_active = 0;
 
 	FNC_EXIT(ret)
 	return ret;
@@ -2620,10 +2621,10 @@ static inline int cam_read_start(int flag)
 	ret = -EINVAL;
 	FNC_ENTRY;
 
-	if ((!em_cam->action && em_cam->grab) || em_cam->reset)
+	if ((!rear_em_cam->action && rear_em_cam->grab) || rear_em_cam->reset)
 		cam_release_buffers(0);
 
-	if (!em_cam->grab) {
+	if (!rear_em_cam->grab) {
 		ret = cam_request_buffers(CAM_READ, EMXX_CAM_MAX_BUFNBRS,
 					  V4L2_MEMORY_MMAP);
 		if (ret)
@@ -2637,21 +2638,21 @@ static inline int cam_read_start(int flag)
 			goto done_cam_read_start;
 		}
 
-		em_cam->action = CAM_READ;
+		rear_em_cam->action = CAM_READ;
 	}
 
 	d1b(" re push all the buffer!\n");
-	for (i = 0; em_cam->grab->max > i; i++)
+	for (i = 0; rear_em_cam->grab->max > i; i++)
 		queing_pushq(i);
 
-	wake_up_interruptible_all(&em_cam->grab->cam_queing_waitq);
+	wake_up_interruptible_all(&rear_em_cam->grab->cam_queing_waitq);
 
 	ret = cam_stream(CAM_ON);
 
 	if (ret)
 		goto done_cam_read_start;
 
-	em_cam->reading = 1;
+	rear_em_cam->reading = 1;
 
 	FNC_EXIT_N;
 
@@ -2674,35 +2675,35 @@ static int emxx_cam_thread(void *p)
 		try_to_freeze();
 #endif /* CONFIG_PM || CONFIG_DPM */
 
-		wait_event_interruptible(em_cam->grab->cam_queing_waitq,
+		wait_event_interruptible(rear_em_cam->grab->cam_queing_waitq,
 				(!grab_peepq(&index) && queing_peepq(&index)) ||
 				kthread_should_stop());
 
 		if (grab_peepq(&index)) {
 			;
 		} else if (queing_peepq(&index)) {
-			switch (em_cam->grab->buff[index].state) {
+			switch (rear_em_cam->grab->buff[index].state) {
 			case CAM_BUF_BREAK:
 			case CAM_BUF_IDLE:
 			case CAM_BUF_DONE:
 			case CAM_BUF_GRABBING:
 				printk("%s buff state is error(%d)\n",
 					__func__,
-					em_cam->grab->buff[index].state);
+					rear_em_cam->grab->buff[index].state);
 				index = queing_pullq();
 				deq_done_pushq(index, 0);
 				wake_up_interruptible_all(
-					&em_cam->grab->proc_list);
+					&rear_em_cam->grab->proc_list);
 				continue;
 
 			case CAM_BUF_QUEUED:
 				break;
 			}
 
-			mutex_lock(&em_cam->frames_lock);
+			mutex_lock(&rear_em_cam->frames_lock);
 			if (!cam_sync(0))
 				cam_capture(0);
-			mutex_unlock(&em_cam->frames_lock);
+			mutex_unlock(&rear_em_cam->frames_lock);
 		}
 	}
 
@@ -2728,6 +2729,8 @@ static int proc_emxx_cam_read(char *page, char **start, off_t off,
 	out += sprintf(out, "V4L Driver version:       %d.%d.%d\n",
 			EMXX_CAM_MAJ_VER, EMXX_CAM_MIN_VER,
 			EMXX_CAM_PATCH_VER);
+	out += sprintf(out, "Name:%s\n", em_cam->hw.name);
+	out += sprintf(out, "Type:%s\n", "BACK");
 
 	len = out - page;
 	len -= off;
@@ -2753,10 +2756,10 @@ static int proc_emxx_cam_write(struct file *file,
 	int retval = 0;
 	FNC_ENTRY;
 
-	if (mutex_lock_interruptible(&em_cam->lock))
+	if (mutex_lock_interruptible(&rear_em_cam->lock))
 		return -ERESTARTSYS;
 
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 
 	FNC_EXIT_N;
 	return retval;
@@ -2834,27 +2837,27 @@ static int emxx_cam_grabs_handler(void *p)
 
 	/* B_MAINOR none */
 
-	if (em_cam->status & B_DMAERR) {
+	if (rear_em_cam->status & B_DMAERR) {
 		flag = 0;
 		bytesused = 0;
 		ret = -EIO;
-	} else if (em_cam->status & B_MAINTC) {
+	} else if (rear_em_cam->status & B_MAINTC) {
 		flag = 1;
-		bytesused = get_sizeimage(em_cam->grab->fmt,
-					  em_cam->width, em_cam->height, &bpl);
+		bytesused = get_sizeimage(rear_em_cam->grab->fmt,
+					  rear_em_cam->width, rear_em_cam->height, &bpl);
 	} else {
 		return 0;
 	}
 	index = grab_pullq();
-	em_cam->grab->buff[index].bytesused = bytesused;
-	em_cam->grab->buff[index].sequence = em_cam->sequence;
-	do_gettimeofday(&em_cam->grab->buff[index].timestamp);
-	em_cam->sequence++;
+	rear_em_cam->grab->buff[index].bytesused = bytesused;
+	rear_em_cam->grab->buff[index].sequence = rear_em_cam->sequence;
+	do_gettimeofday(&rear_em_cam->grab->buff[index].timestamp);
+	rear_em_cam->sequence++;
 	deq_done_pushq(index, flag);
 
-	wake_up_interruptible(&em_cam->grab->cam_queing_waitq);
+	wake_up_interruptible(&rear_em_cam->grab->cam_queing_waitq);
 
-	wake_up_interruptible_all(&em_cam->grab->proc_list);
+	wake_up_interruptible_all(&rear_em_cam->grab->proc_list);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -2875,14 +2878,14 @@ static void emxx_cam_vm_open(struct vm_area_struct *vma)
 	d1b("vm_open %p [count=%d,vma=%08lx-%08lx]\n", map,
 	    map->count, vma->vm_start, vma->vm_end);
 	map->count++;
-	em_cam->mapping++;
+	rear_em_cam->mapping++;
 	FNC_EXIT_N;
 }
 
 static void emxx_cam_vm_close(struct vm_area_struct *vma)
 {
 	struct emxx_cam_mapping *map = vma->vm_private_data;
-	struct emxx_cam_frames *frm = em_cam->grab;
+	struct emxx_cam_frames *frm = rear_em_cam->grab;
 	int i;
 	FNC_ENTRY;
 
@@ -2891,16 +2894,16 @@ static void emxx_cam_vm_close(struct vm_area_struct *vma)
 
 	map->count--;
 	if (0 == map->count) {
-		mutex_lock(&em_cam->lock);
+		mutex_lock(&rear_em_cam->lock);
 		for (i = 0; i < frm->max; i++) {
 			if (frm->buff[i].map != map)
 				continue;
 			frm->buff[i].map   = NULL;
 		}
-		mutex_unlock(&em_cam->lock);
+		mutex_unlock(&rear_em_cam->lock);
 		kfree(map);
 	}
-	em_cam->mapping--;
+	rear_em_cam->mapping--;
 
 #ifdef CONFIG_VIDEO_EMXX
 	map->vm_ops->close(vma);
@@ -2947,7 +2950,7 @@ static int emxx_cam_vidioc_enum_input(struct file *file, void *fh,
 	}
 
 	memset(inp, 0, sizeof(*inp));
-	strlcpy(inp->name, "cam", sizeof(inp->name));
+	strlcpy(inp->name, em_cam->hw.name, sizeof(inp->name));
 	inp->type = V4L2_INPUT_TYPE_CAMERA;
 
 	FNC_EXIT(ret)
@@ -3028,7 +3031,7 @@ static int emxx_cam_vidioc_g_ctrl(struct file *file, void *fh,
 	}
 	switch (c->id) {
 	case EMXX_CID_IPU:
-		c->value = em_cam->ipu;
+		c->value = rear_em_cam->ipu;
 		break;
 	default:
 		ret = -EINVAL;
@@ -3064,32 +3067,32 @@ static int emxx_cam_vidioc_s_ctrl(struct file *file, void *fh,
 		/* nothing */;
 	}
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 	switch (c->id) {
 	case EMXX_CID_IPU:
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-		if (em_cam->mapping || em_cam->reading || em_cam->streaming) {
+		if (rear_em_cam->mapping || rear_em_cam->reading || rear_em_cam->streaming) {
 #else
-		if (em_cam->streaming) {
+		if (rear_em_cam->streaming) {
 #endif
 			warn("%s: s_ctrl IPU: streaming already exists.\n",
 			     CAM_NAME);
 			ret = -EBUSY;
 			break;
 		}
-		if (em_cam->ipu != c->value) {
-			if (V4L2_PIX_FMT_RGB24 == em_cam->fmt->pixelformat ||
-			    V4L2_PIX_FMT_RGB565 == em_cam->fmt->pixelformat) {
-				em_cam->reset = 1;
+		if (rear_em_cam->ipu != c->value) {
+			if (V4L2_PIX_FMT_RGB24 == rear_em_cam->fmt->pixelformat ||
+			    V4L2_PIX_FMT_RGB565 == rear_em_cam->fmt->pixelformat) {
+				rear_em_cam->reset = 1;
 			}
-			em_cam->ipu = (c->value) ? 1 : 0;
+			rear_em_cam->ipu = (c->value) ? 1 : 0;
 		}
 		break;
 
 	default:
 		ret = -EINVAL;
 	}
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -3138,8 +3141,8 @@ static int emxx_cam_vidioc_try_fmt_cap(struct file *file, void *fh,
 	}
 
 	{
-		u32 max_width  = camif_fmt_boundary(fmt, em_cam->c.width);
-		u32 max_height = em_cam->c.height;
+		u32 max_width  = camif_fmt_boundary(fmt, rear_em_cam->c.width);
+		u32 max_height = rear_em_cam->c.height;
 		u32 min_width  = camif_width_limit(fmt, max_width);
 		u32 min_height = camif_height_limit(fmt, max_height);
 
@@ -3172,13 +3175,13 @@ static int emxx_cam_vidioc_g_fmt_cap(struct file *file, void *fh,
 	int ret = 0;
 	FNC_ENTRY;
 
-	f->fmt.pix.width        = em_cam->width;
-	f->fmt.pix.height       = em_cam->height;
+	f->fmt.pix.width        = rear_em_cam->width;
+	f->fmt.pix.height       = rear_em_cam->height;
 	f->fmt.pix.field        = V4L2_FIELD_NONE;
-	f->fmt.pix.pixelformat  = em_cam->fmt->pixelformat;
+	f->fmt.pix.pixelformat  = rear_em_cam->fmt->pixelformat;
 
-	pix_format_set_size(&f->fmt.pix, em_cam->fmt,
-				em_cam->width, em_cam->height);
+	pix_format_set_size(&f->fmt.pix, rear_em_cam->fmt,
+				rear_em_cam->width, rear_em_cam->height);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -3190,49 +3193,47 @@ static int emxx_cam_vidioc_s_fmt_cap(struct file *file, void *fh,
 {
 	int ret = 0;
 	FNC_ENTRY;
-
+	/*
 	ret = emxx_cam_vidioc_try_fmt_cap(file, fh, f);
 	if (ret < 0) {
 		FNC_EXIT(ret)
 		return ret;
-	}
-
+	}*/
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-	if (em_cam->mapping || em_cam->reading || em_cam->streaming) {
+	if (rear_em_cam->mapping || rear_em_cam->reading || rear_em_cam->streaming) {
 #else
-	if (em_cam->streaming) {
+	if (rear_em_cam->streaming) {
 #endif
 		warn("%s: s_fmt: streaming already exists.\n", CAM_NAME);
 		ret = -EBUSY;
 	} else {
 		const struct emxx_cam_fmt *fmt;
 
-		mutex_lock(&em_cam->lock);
+		mutex_lock(&rear_em_cam->lock);
 		fmt = format_by_pixelformat(f->fmt.pix.pixelformat);
-		if (em_cam->fmt->pixelformat != fmt->pixelformat) {
-			em_cam->reset = check_reset_fmt(em_cam->fmt, fmt);
-			em_cam->setup = 1;
+		if (rear_em_cam->fmt->pixelformat != fmt->pixelformat) {
+			rear_em_cam->reset = check_reset_fmt(rear_em_cam->fmt, fmt);
+			rear_em_cam->setup = 1;
 		}
-		if (em_cam->width != f->fmt.pix.width)
-			em_cam->setup = 1;
-		if (em_cam->height != f->fmt.pix.height)
-			em_cam->setup = 1;
-		em_cam->fmt    = fmt;
-		em_cam->width  = f->fmt.pix.width;
-		em_cam->height = f->fmt.pix.height;
-
-		if(em_cam->hw.vidioc_s_fmt){
-		ret = em_cam->hw.vidioc_s_fmt(&em_cam->pre,f);
+		if (rear_em_cam->width != f->fmt.pix.width)
+			rear_em_cam->setup = 1;
+		if (rear_em_cam->height != f->fmt.pix.height)
+			rear_em_cam->setup = 1;
+		rear_em_cam->fmt    = fmt;
+		rear_em_cam->width  = f->fmt.pix.width;
+		rear_em_cam->height = f->fmt.pix.height;
+		if(rear_em_cam->hw.vidioc_s_fmt){
+		ret = rear_em_cam->hw.vidioc_s_fmt(&rear_em_cam->pre,f);
 		if(ret){
 				FNC_EXIT(ret)
 				return ret;
 			}
-		}
+		}///-----------------------------------------------------------------------------------------------
 
-		if(em_cam->setup == 1)
+		if(rear_em_cam->setup == 1)
 			cam_reset_update();
 
-		mutex_unlock(&em_cam->lock);
+		mutex_unlock(&rear_em_cam->lock);
 	}
 
 	FNC_EXIT(ret)
@@ -3251,12 +3252,12 @@ static int emxx_cam_vidioc_cropcap(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	mutex_lock(&em_cam->lock);
-	c->bounds  = em_cam->bounds;
-	c->defrect = em_cam->bounds;
+	mutex_lock(&rear_em_cam->lock);
+	c->bounds  = rear_em_cam->bounds;
+	c->defrect = rear_em_cam->bounds;
 	c->pixelaspect.numerator   = 1;
 	c->pixelaspect.denominator = 1;
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -3273,9 +3274,9 @@ static int emxx_cam_vidioc_g_crop(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	mutex_lock(&em_cam->lock);
-	crop->c = em_cam->c;
-	mutex_unlock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
+	crop->c = rear_em_cam->c;
+	mutex_unlock(&rear_em_cam->lock);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -3294,9 +3295,9 @@ static int emxx_cam_vidioc_s_crop(struct file *file, void *fh,
 	}
 
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-	if (em_cam->mapping || em_cam->reading || em_cam->streaming) {
+	if (rear_em_cam->mapping || rear_em_cam->reading || rear_em_cam->streaming) {
 #else
-	if (em_cam->streaming) {
+	if (rear_em_cam->streaming) {
 #endif
 		warn("%s: s_crop: streaming already exists.\n", CAM_NAME);
 		return -EBUSY;
@@ -3305,27 +3306,27 @@ static int emxx_cam_vidioc_s_crop(struct file *file, void *fh,
 	crop->c.left = crop->c.left >> 1;
 	crop->c.left = crop->c.left << 1;
 
-	width = (em_cam->bounds.left + em_cam->bounds.width)
-		- abs(em_cam->bounds.left - crop->c.left);
+	width = (rear_em_cam->bounds.left + rear_em_cam->bounds.width)
+		- abs(rear_em_cam->bounds.left - crop->c.left);
 	if (width < crop->c.width)
 		crop->c.width = width;
-	crop->c.width = camif_fmt_boundary(em_cam->fmt, crop->c.width);
+	crop->c.width = camif_fmt_boundary(rear_em_cam->fmt, crop->c.width);
 
-	height = (em_cam->bounds.top + em_cam->bounds.height)
-		- abs(em_cam->bounds.top - crop->c.top);
+	height = (rear_em_cam->bounds.top + rear_em_cam->bounds.height)
+		- abs(rear_em_cam->bounds.top - crop->c.top);
 	if (height < crop->c.height)
 		crop->c.height = height;
 
-	if (em_cam->bounds.left > crop->c.left)
-		crop->c.left = em_cam->bounds.left;
+	if (rear_em_cam->bounds.left > crop->c.left)
+		crop->c.left = rear_em_cam->bounds.left;
 
-	if (em_cam->bounds.top > crop->c.top)
-		crop->c.top = em_cam->bounds.top;
+	if (rear_em_cam->bounds.top > crop->c.top)
+		crop->c.top = rear_em_cam->bounds.top;
 
-	if ((crop->c.left >= em_cam->bounds.left + em_cam->bounds.width)  ||
-	    (crop->c.top  >= em_cam->bounds.top  + em_cam->bounds.height) ||
-	    (crop->c.left + crop->c.width  <= em_cam->bounds.left)     ||
-	    (crop->c.top  + crop->c.height <= em_cam->bounds.top)      ||
+	if ((crop->c.left >= rear_em_cam->bounds.left + rear_em_cam->bounds.width)  ||
+	    (crop->c.top  >= rear_em_cam->bounds.top  + rear_em_cam->bounds.height) ||
+	    (crop->c.left + crop->c.width  <= rear_em_cam->bounds.left)     ||
+	    (crop->c.top  + crop->c.height <= rear_em_cam->bounds.top)      ||
 	    crop->c.width  <= 0                                    ||
 	    crop->c.height <= 0
 	) {
@@ -3333,32 +3334,32 @@ static int emxx_cam_vidioc_s_crop(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	mutex_lock(&em_cam->lock);
-	if (crop->c.width < em_cam->width) {
-		em_cam->width = crop->c.width;
-		em_cam->setup = 1;
-	} else if (camif_width_ratio_limit(em_cam->fmt, crop->c.width)
-		 > em_cam->width) {
-		crop->c.width = 1023 * em_cam->width / 64;
-		crop->c.width = camif_fmt_boundary(em_cam->fmt, crop->c.width);
+	mutex_lock(&rear_em_cam->lock);
+	if (crop->c.width < rear_em_cam->width) {
+		rear_em_cam->width = crop->c.width;
+		rear_em_cam->setup = 1;
+	} else if (camif_width_ratio_limit(rear_em_cam->fmt, crop->c.width)
+		 > rear_em_cam->width) {
+		crop->c.width = 1023 * rear_em_cam->width / 64;
+		crop->c.width = camif_fmt_boundary(rear_em_cam->fmt, crop->c.width);
 	}
 
-	if (crop->c.height < em_cam->height) {
-		em_cam->height = crop->c.height;
-		em_cam->setup = 1;
-	} else if (camif_height_ratio_limit(em_cam->fmt, crop->c.height)
-		 > em_cam->height)
-		crop->c.height = 1023 * em_cam->height / 64;
+	if (crop->c.height < rear_em_cam->height) {
+		rear_em_cam->height = crop->c.height;
+		rear_em_cam->setup = 1;
+	} else if (camif_height_ratio_limit(rear_em_cam->fmt, crop->c.height)
+		 > rear_em_cam->height)
+		crop->c.height = 1023 * rear_em_cam->height / 64;
 
-	if (em_cam->c.top    != crop->c.top
-	    || em_cam->c.left   != crop->c.left
-	    || em_cam->c.width  != crop->c.width
-	    || em_cam->c.height != crop->c.height) {
-		em_cam->c = crop->c;
-		em_cam->setup = 1;
+	if (rear_em_cam->c.top    != crop->c.top
+	    || rear_em_cam->c.left   != crop->c.left
+	    || rear_em_cam->c.width  != crop->c.width
+	    || rear_em_cam->c.height != crop->c.height) {
+		rear_em_cam->c = crop->c;
+		rear_em_cam->setup = 1;
 	}
 
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 
 	FNC_EXIT(ret)
 	return ret;
@@ -3374,7 +3375,7 @@ static int emxx_cam_vidioc_reqbufs(struct file *file, void *fh,
 	FNC_ENTRY;
 
 	if (no_active(priv->number)) {
-		warn("%s: reqbufs: no active___num is %d.\n", CAM_NAME,priv->number);
+		warn("%s: reqbufs: no active.\n", CAM_NAME);
 		return -EINVAL;
 	}
 
@@ -3399,21 +3400,21 @@ static int emxx_cam_vidioc_reqbufs(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	if (em_cam->streaming) {
+	if (rear_em_cam->streaming) {
 		warn("%s: reqbufs: streaming already exists.\n", CAM_NAME);
 		return -EBUSY;
 	}
-	em_cam->reading = 0;
+	rear_em_cam->reading = 0;
 #if EMXX_CAM_USE_MMAP/* need support V4L2_MEMORY_MMAP */
-	if (em_cam->mapping) {
+	if (rear_em_cam->mapping) {
 		warn("%s: reqbufs: buffers already mapping.\n", CAM_NAME);
 		return -EBUSY;
 	}
 #endif
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
-	if (em_cam->action)
+	if (rear_em_cam->action)
 		cam_stream(CAM_OFF);
 
 	count = req->count;
@@ -3435,10 +3436,10 @@ static int emxx_cam_vidioc_reqbufs(struct file *file, void *fh,
 		goto done_vidioc_reqbufs;
 	}
 
-	req->count = em_cam->grab->max;
+	req->count = rear_em_cam->grab->max;
 
 done_vidioc_reqbufs:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3455,13 +3456,13 @@ static int emxx_cam_vidioc_querybuf(struct file *file, void *fh,
 		return -EINVAL;
 	}
 
-	if (!em_cam->grab || em_cam->action || em_cam->reset) {
+	if (!rear_em_cam->grab || rear_em_cam->action || rear_em_cam->reset) {
 		warn("%s: querybuf: buffer is null.\n", CAM_NAME);
 		FNC_EXIT(-EINVAL)
 		return -EINVAL;
 	}
 
-	if (0 > b->index || em_cam->grab->max <= b->index) {
+	if (0 > b->index || rear_em_cam->grab->max <= b->index) {
 		warn("%s: querybuf: index out of range.\n", CAM_NAME);
 		FNC_EXIT(-EINVAL)
 		return -EINVAL;
@@ -3482,7 +3483,7 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 	struct emxx_cam_buffer *cdb;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	if (no_active(priv->number)) {
 		warn("%s: qbuf: no active.\n", CAM_NAME);
@@ -3490,7 +3491,7 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 	}
 
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-	if (em_cam->reading) {
+	if (rear_em_cam->reading) {
 		warn("%s: qbuf: Reading running...\n", CAM_NAME);
 		goto done_vidioc_qbuf;
 	}
@@ -3501,19 +3502,19 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 		goto done_vidioc_qbuf;
 	}
 
-	if (!em_cam->grab || em_cam->action || em_cam->reset) {
+	if (!rear_em_cam->grab || rear_em_cam->action || rear_em_cam->reset) {
 		warn("%s: qbuf: buffer is null.\n", CAM_NAME);
 		goto done_vidioc_qbuf;
 	}
 
-	if (0 > b->index || em_cam->grab->max <= b->index) {
+	if (0 > b->index || rear_em_cam->grab->max <= b->index) {
 		warn("%s: qbuf: index out of range.\n", CAM_NAME);
 		goto done_vidioc_qbuf;
 	}
 
-	cdb = &em_cam->grab->buff[b->index];
+	cdb = &rear_em_cam->grab->buff[b->index];
 
-	if (em_cam->grab->memory != b->memory) {
+	if (rear_em_cam->grab->memory != b->memory) {
 		warn("%s: qbuf: memory type is wrong.\n", CAM_NAME);
 		goto done_vidioc_qbuf;
 	}
@@ -3526,8 +3527,8 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 
 	/* XXX if (b->flags & V4L2_BUF_FLAG_INPUT) XXX */
 
-	bytesused = get_sizeimage(em_cam->grab->fmt,
-				  em_cam->width, em_cam->height, &bpl);
+	bytesused = get_sizeimage(rear_em_cam->grab->fmt,
+				  rear_em_cam->width, rear_em_cam->height, &bpl);
 
 	switch (b->memory) {
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
@@ -3570,10 +3571,10 @@ static int emxx_cam_vidioc_qbuf(struct file *file, void *fh,
 	b->flags &= ~V4L2_BUF_FLAG_DONE;
 
 	queing_pushq(b->index);
-	wake_up_interruptible_all(&em_cam->grab->cam_queing_waitq);
+	wake_up_interruptible_all(&rear_em_cam->grab->cam_queing_waitq);
 
 done_vidioc_qbuf:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3587,7 +3588,7 @@ static int emxx_cam_vidioc_dqbuf(struct file *file, void *fh,
 	unsigned int index_pull;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 	ret = -EINVAL;
 
 	if (no_active(priv->number)) {
@@ -3598,7 +3599,7 @@ static int emxx_cam_vidioc_dqbuf(struct file *file, void *fh,
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
 	ret = -EBUSY;
 
-	if (em_cam->reading) {
+	if (rear_em_cam->reading) {
 		warn("%s: dqbuf: Reading running...\n", CAM_NAME);
 		goto done_vidioc_dqbuf;
 	}
@@ -3611,12 +3612,12 @@ static int emxx_cam_vidioc_dqbuf(struct file *file, void *fh,
 		goto done_vidioc_dqbuf;
 	}
 
-	if (!em_cam->grab || em_cam->action || em_cam->reset) {
+	if (!rear_em_cam->grab || rear_em_cam->action || rear_em_cam->reset) {
 		warn("%s: dqbuf: buffer is null.\n", CAM_NAME);
 		goto done_vidioc_dqbuf;
 	}
 
-	ret = cam_waiton(em_cam, &index,
+	ret = cam_waiton(rear_em_cam, &index,
 		file->f_flags & O_NONBLOCK, LIMIT_TIME);
 	if (ret) {
 		warn("%s: dqbuf: no qbuf.\n", CAM_NAME);
@@ -3626,17 +3627,17 @@ static int emxx_cam_vidioc_dqbuf(struct file *file, void *fh,
 	memset(b, 0, sizeof(*b));
 	cam_buffer_status(b, index, V4L2_BUF_TYPE_VIDEO_CAPTURE);
 #ifdef CONFIG_VIDEO_EMXX
-	b->m.phys_add.PhysAddr_Y = em_cam->grab->buff[index].padr;
+	b->m.phys_add.PhysAddr_Y = rear_em_cam->grab->buff[index].padr;
 	b->m.phys_add.PhysAddr_UV = b->m.phys_add.PhysAddr_Y +
-					(em_cam->width * em_cam->height);
+					(rear_em_cam->width * rear_em_cam->height);
 	b->m.phys_add.PhysAddr_V = b->m.phys_add.PhysAddr_UV +
-					(em_cam->width * em_cam->height / 4);
+					(rear_em_cam->width * rear_em_cam->height / 4);
 #endif
 
 	index_pull = deq_done_pullq();
 
 done_vidioc_dqbuf:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3649,7 +3650,7 @@ static int emxx_cam_vidioc_streamon(struct file *file, void *fh,
 	int ret = 0;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	ret = -EINVAL;
 
@@ -3658,7 +3659,7 @@ static int emxx_cam_vidioc_streamon(struct file *file, void *fh,
 		goto done_vidioc_streamon;
 	}
 
-	if (!em_cam->grab || em_cam->action || em_cam->reset) {
+	if (!rear_em_cam->grab || rear_em_cam->action || rear_em_cam->reset) {
 		warn("%s: streamon: buffer is null.\n", CAM_NAME);
 		goto done_vidioc_streamon;
 	}
@@ -3666,7 +3667,7 @@ static int emxx_cam_vidioc_streamon(struct file *file, void *fh,
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
 	ret = -EBUSY;
 
-	if (em_cam->reading) {
+	if (rear_em_cam->reading) {
 		warn("%s: streamon: Reading running...\n", CAM_NAME);
 		goto done_vidioc_streamon;
 	}
@@ -3674,7 +3675,7 @@ static int emxx_cam_vidioc_streamon(struct file *file, void *fh,
 
 	ret = 0;
 
-	if (em_cam->streaming)
+	if (rear_em_cam->streaming)
 		goto done_vidioc_streamon;
 
 	ret = cam_stream(CAM_ON);
@@ -3682,13 +3683,13 @@ static int emxx_cam_vidioc_streamon(struct file *file, void *fh,
 	if (ret)
 		goto done_vidioc_streamon;
 
-	em_cam->streaming = 1;
+	rear_em_cam->streaming = 1;
 
 	/*d4b("\n\nstream on\n");
 	emxx_camif_reg_debug();*/
 
 done_vidioc_streamon:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3700,7 +3701,7 @@ static int emxx_cam_vidioc_streamoff(struct file *file, void *fh,
 	int ret = 0;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	ret = -EINVAL;
 
@@ -3709,7 +3710,7 @@ static int emxx_cam_vidioc_streamoff(struct file *file, void *fh,
 		goto done_vidioc_streamoff;
 	}
 
-	if (!em_cam->streaming) {
+	if (!rear_em_cam->streaming) {
 		warn("%s: streamoff: no streamon.\n", CAM_NAME);
 		goto done_vidioc_streamoff;
 	}
@@ -3717,7 +3718,7 @@ static int emxx_cam_vidioc_streamoff(struct file *file, void *fh,
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
 	ret = -EBUSY;
 
-	if (em_cam->reading) {
+	if (rear_em_cam->reading) {
 		warn("%s: streamoff: Reading running...\n", CAM_NAME);
 		goto done_vidioc_streamoff;
 	}
@@ -3728,15 +3729,15 @@ static int emxx_cam_vidioc_streamoff(struct file *file, void *fh,
 	cam_stream(CAM_OFF);
 
 	/*release buffers?*/
-	if (em_cam->grab->buff)
+	if (rear_em_cam->grab->buff)
 		cam_release_buffers(0);
 
-	em_cam->streaming = 0;
+	rear_em_cam->streaming = 0;
 	/*d4b("\n\nstream off\n");
 	emxx_camif_reg_debug();*/
 
 done_vidioc_streamoff:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3754,18 +3755,18 @@ static unsigned int emxx_cam_poll(struct file *file, poll_table *wait)
 		return POLLERR;
 	}
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	len = 0;
 
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-	if (em_cam->mapping ||  em_cam->userptr) {
-		if (!em_cam->streaming) {
+	if (rear_em_cam->mapping ||  rear_em_cam->userptr) {
+		if (!rear_em_cam->streaming) {
 			warn("%s: poll: no stream.\n", CAM_NAME);
 			rc = POLLERR;
 		}
 	} else {
-		if (!em_cam->reading) {
+		if (!rear_em_cam->reading) {
 			int ret;
 			ret = cam_read_start(0);
 			if (ret) {
@@ -3776,7 +3777,7 @@ static unsigned int emxx_cam_poll(struct file *file, poll_table *wait)
 		}
 	}
 #else
-	if (em_cam->userptr && !em_cam->streaming) {
+	if (rear_em_cam->userptr && !rear_em_cam->streaming) {
 		warn("%s: poll: no stream.\n", CAM_NAME);
 		rc = POLLERR;
 	}
@@ -3785,12 +3786,12 @@ static unsigned int emxx_cam_poll(struct file *file, poll_table *wait)
 	len = deq_done_peepq(&index);
 
 	if (!len) {
-		poll_wait(file, &em_cam->grab->proc_list, wait);
+		poll_wait(file, &rear_em_cam->grab->proc_list, wait);
 		len = deq_done_peepq(&index);
 	}
 
 	if (len) {
-		struct emxx_cam_buffer *cdb = &em_cam->grab->buff[index];
+		struct emxx_cam_buffer *cdb = &rear_em_cam->grab->buff[index];
 		if (CAM_BUF_DONE == cdb->state)
 			rc = POLLIN | POLLRDNORM;
 		else
@@ -3799,7 +3800,7 @@ static unsigned int emxx_cam_poll(struct file *file, poll_table *wait)
 		rc = 0;
 	}
 
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(rc)
 	return rc;
 }
@@ -3814,7 +3815,7 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 	__u32 cnt, bpl;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	if (!count)
 		goto done_cam_read;
@@ -3826,22 +3827,22 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 		goto done_cam_read;
 	}
 
-	if (em_cam->streaming) {
+	if (rear_em_cam->streaming) {
 		warn("%s: read: streaming already exists.\n", CAM_NAME);
 		goto done_cam_read;
 	}
 
-	if (em_cam->mapping) {
+	if (rear_em_cam->mapping) {
 		warn("%s: read: mapping done.\n", CAM_NAME);
 		goto done_cam_read;
 	}
 
-	if (em_cam->userptr) {
+	if (rear_em_cam->userptr) {
 		warn("%s: read: userptr done.\n", CAM_NAME);
 		goto done_cam_read;
 	}
 
-	if (!em_cam->reading) {
+	if (!rear_em_cam->reading) {
 		ret = cam_read_start(0);
 		if (ret) {
 			warn("%s: read setup returned %d.\n", CAM_NAME, ret);
@@ -3849,8 +3850,8 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 		}
 	}
 
-	cnt = get_sizeimage(em_cam->grab->fmt,
-			em_cam->width, em_cam->height, &bpl);
+	cnt = get_sizeimage(rear_em_cam->grab->fmt,
+			rear_em_cam->width, rear_em_cam->height, &bpl);
 
 	if (cnt > count) {
 		warn("%s: read: count < %d.\n", CAM_NAME, cnt);
@@ -3859,7 +3860,7 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 
 	ret = -EFAULT;
 
-	ret = cam_waiton(em_cam, &index,
+	ret = cam_waiton(rear_em_cam, &index,
 		file->f_flags & O_NONBLOCK, LIMIT_TIME);
 
 	if (ret)
@@ -3867,7 +3868,7 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 
 	ret = -EFAULT;
 
-	if (copy_to_user(buf, em_cam->grab->buff[index].vadr, cnt)) {
+	if (copy_to_user(buf, rear_em_cam->grab->buff[index].vadr, cnt)) {
 		err("%s: read: copy_to_user fault.\n", CAM_NAME);
 		goto done_cam_read;
 	}
@@ -3879,10 +3880,10 @@ static ssize_t emxx_cam_read(struct file *file, char *buf,
 	assert(index == next);
 
 	queing_pushq(next);
-	wake_up_interruptible_all(&em_cam->grab->cam_queing_waitq);
+	wake_up_interruptible_all(&rear_em_cam->grab->cam_queing_waitq);
 
 done_cam_read:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -3895,13 +3896,13 @@ static struct vm_operations_struct cam_vm_ops = {
 static int emxx_cam_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct emxx_cam_private *priv = file->private_data;
-	struct emxx_cam_frames *frm = em_cam->grab;
+	struct emxx_cam_frames *frm = rear_em_cam->grab;
 	struct emxx_cam_mapping *map;
 	unsigned int first, last, size, i;
 	int ret = 0;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 	ret = -EINVAL;
 	if (no_active(priv->number)) {
 		warn("%s: mmap: no active.\n", CAM_NAME);
@@ -3996,7 +3997,7 @@ static int emxx_cam_mmap(struct file *file, struct vm_area_struct *vma)
 
 #ifdef CONFIG_VIDEO_EMXX
 	map->count++;
-	em_cam->mapping++;
+	rear_em_cam->mapping++;
 #else
 	emxx_cam_vm_open(vma);
 #endif
@@ -4006,7 +4007,7 @@ static int emxx_cam_mmap(struct file *file, struct vm_area_struct *vma)
 	ret = 0;
 
 done_cam_mmap:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -4024,10 +4025,10 @@ static int emxx_cam_open(struct file *file)
 	__u32 nouse;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
+	mutex_lock(&rear_em_cam->lock);
 
 	/*check whether the open number > 32*/
-	if (CAM_OPEN_MAX <= em_cam->open_count) {
+	if (CAM_OPEN_MAX <= rear_em_cam->open_count) {
 		ret = -EBUSY;
 		goto done_cam_open;
 	}
@@ -4044,40 +4045,40 @@ static int emxx_cam_open(struct file *file)
 	  used_number + (1 << x)*/
 	for (i = 0; i < CAM_OPEN_MAX; i++) {
 		nouse = 0x01 << i;
-		if (!(em_cam->used_number & nouse))
+		if (!(rear_em_cam->used_number & nouse))
 			break;
 	}
 
 	/* if current no active number*/
-	if (0 == em_cam->active_number) {
-		/*if em_cam->action return value is not 0, error*/
-		assert(!em_cam->action)
+	if (0 == rear_em_cam->active_number) {
+		/*if rear_em_cam->action return value is not 0, error*/
+		assert(!rear_em_cam->action)
 #if EMXX_CAM_USE_MMAP /* need support V4L2_MEMORY_MMAP */
-		assert(!em_cam->reading)
+		assert(!rear_em_cam->reading)
 #endif
-		assert(!em_cam->streaming)
+		assert(!rear_em_cam->streaming)
 
-		em_cam->status = 0;
-		em_cam->setup  = 1;
-		em_cam->reset  = 1;
-		em_cam->stop   = 0;
-		em_cam->frames_active = 0;
+		rear_em_cam->status = 0;
+		rear_em_cam->setup  = 1;
+		rear_em_cam->reset  = 1;
+		rear_em_cam->stop   = 0;
+		rear_em_cam->frames_active = 0;
 
-		em_cam->th     = NULL;
+		rear_em_cam->th     = NULL;
 
-		kfifo_reset(&em_cam->deq_done->kfifo);
-		kfifo_reset(&em_cam->grab->enq->kfifo);
-		kfifo_reset(&em_cam->grab->queingq->kfifo);
+		kfifo_reset(&rear_em_cam->deq_done->kfifo);
+		kfifo_reset(&rear_em_cam->grab->enq->kfifo);
+		kfifo_reset(&rear_em_cam->grab->queingq->kfifo);
 
 		/* make the active_number as the current open number */
-		em_cam->active_number = nouse;
+		rear_em_cam->active_number = nouse;
 	}
 
 	/*
 	if it is the first time open operation
 	need to startup the camera IF and sensor hw
 	*/
-	if (0 == em_cam->open_count) {
+	if (0 == rear_em_cam->open_count) {
 		/*startup cam if in EMEV*/
 		ret = emxx_camif_startup();
 		if (ret) {
@@ -4096,8 +4097,8 @@ static int emxx_cam_open(struct file *file)
 		grab_pull_cnt = 0;
 #endif
 		/*sensor hw startup*/
-		if (em_cam->hw.startup) {
-			ret = em_cam->hw.startup(0);
+		if (rear_em_cam->hw.startup) {
+			ret = rear_em_cam->hw.startup(0);
 			if (ret) {
 				kfree(priv);
 				priv = NULL;
@@ -4105,12 +4106,12 @@ static int emxx_cam_open(struct file *file)
 			}
 		}
 
-		if (em_cam->hw.sync) {
-			em_cam->pre.actions = 0;
-			ret = em_cam->hw.sync(&em_cam->pre);
+		if (rear_em_cam->hw.sync) {
+			rear_em_cam->pre.actions = 0;
+			ret = rear_em_cam->hw.sync(&rear_em_cam->pre);
 			if (ret) {
-				if (em_cam->hw.shutdown)
-					em_cam->hw.shutdown(0);
+				if (rear_em_cam->hw.shutdown)
+					rear_em_cam->hw.shutdown(0);
 				kfree(priv);
 				priv = NULL;
 				goto done_cam_open;
@@ -4118,7 +4119,7 @@ static int emxx_cam_open(struct file *file)
 		}
 
 #ifdef CONFIG_EMXX_ANDROID
-		wake_lock(&em_cam->idle_lock); /* lock suspend */
+		wake_lock(&rear_em_cam->idle_lock); /* lock suspend */
 #endif /* CONFIG_EMXX_ANDROID */
 	}
 
@@ -4126,16 +4127,16 @@ static int emxx_cam_open(struct file *file)
 	priv->number = nouse;
 
 	/* add the current open number to used number*/
-	em_cam->used_number |= priv->number;
+	rear_em_cam->used_number |= priv->number;
 
 	/* take the priv as the open file's private data */
 	file->private_data = priv;
 
 	/* open number add 1*/
-	em_cam->open_count++;
+	rear_em_cam->open_count++;
 
 done_cam_open:
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -4150,47 +4151,47 @@ static int emxx_cam_close(struct file *file)
 	int ret = 0;
 	FNC_ENTRY;
 
-	mutex_lock(&em_cam->lock);
-	em_cam->open_count--;/* open count del 1*/
+	mutex_lock(&rear_em_cam->lock);
+	rear_em_cam->open_count--;/* open count del 1*/
 
 	/* if the file private number is the current active number,
 	do following operation*/
-	if (em_cam->active_number == priv->number) {
+	if (rear_em_cam->active_number == priv->number) {
 
 		cam_stream(CAM_OFF);
 
-		em_cam->action    = 0;
-		em_cam->reading   = 0;
-		em_cam->streaming = 0;
-		em_cam->userptr   = 0;
+		rear_em_cam->action    = 0;
+		rear_em_cam->reading   = 0;
+		rear_em_cam->streaming = 0;
+		rear_em_cam->userptr   = 0;
 
 		/*release buffers?*/
-		if (em_cam->grab->buff)
+		if (rear_em_cam->grab->buff)
 			cam_release_buffers(0);
 
-		em_cam->active_number = 0;
+		rear_em_cam->active_number = 0;
 	}
 
 	/* if no camera opened, then shutdown the CAM module IF and sensor hw*/
-	if (0 == em_cam->open_count) {
+	if (0 == rear_em_cam->open_count) {
 		emxx_camif_shutdown(0);
 
-		if (em_cam->hw.shutdown)
-			em_cam->hw.shutdown(0);
+		if (rear_em_cam->hw.shutdown)
+			rear_em_cam->hw.shutdown(0);
 
 #ifdef CONFIG_EMXX_ANDROID
-		wake_unlock(&em_cam->idle_lock); /* unlock suspend */
+		wake_unlock(&rear_em_cam->idle_lock); /* unlock suspend */
 #endif /* CONFIG_EMXX_ANDROID */
 	}
 
 	/* d1b("chk used_number : 0x%08x number : 0x%08x\n",
 					cam->used_number, ~priv->number); */
-	em_cam->used_number &= ~priv->number;
+	rear_em_cam->used_number &= ~priv->number;
 
 	kfree(priv);
 	priv = NULL;
 
-	mutex_unlock(&em_cam->lock);
+	mutex_unlock(&rear_em_cam->lock);
 	FNC_EXIT(ret)
 	return ret;
 }
@@ -4294,70 +4295,70 @@ static int emxx_cam_register(int flag)
 	FNC_ENTRY;
 
 	/*allocate memory*/
-	em_cam = kzalloc(sizeof(*em_cam), GFP_KERNEL);
+	rear_em_cam = kzalloc(sizeof(*rear_em_cam), GFP_KERNEL);
 
-	if (NULL == em_cam) {
+	if (NULL == rear_em_cam) {
 		err("%s: only one device allowed!\n", CAM_NAME);
 		goto out_emxx_cam_register;
 	}
 
 	/*init lock member for emxx_cam structure*/
-	mutex_init(&em_cam->lock);
-	mutex_init(&em_cam->frames_lock);
+	mutex_init(&rear_em_cam->lock);
+	mutex_init(&rear_em_cam->frames_lock);
 
 #ifdef CONFIG_EMXX_ANDROID
 	/* Android power management wake lock init */
 	/* suspend control*/
-	wake_lock_init(&em_cam->idle_lock, WAKE_LOCK_IDLE, CAM_NAME);
+	wake_lock_init(&rear_em_cam->idle_lock, WAKE_LOCK_IDLE, CAM_NAME);
 #endif /* CONFIG_EMXX_ANDROID */
 
 	/*allocate memory space*/
-	ret = kfifo_lock_alloc(&em_cam->deq_done);
+	ret = kfifo_lock_alloc(&rear_em_cam->deq_done);
 	if (ret) {
 		err("%s: deq_done fifo allocation failed\n", CAM_NAME);
 		goto out_kfree_cam;
 	}
 
 	/*allocate memory space*/
-	em_cam->grab = kzalloc(sizeof(*em_cam->grab), GFP_KERNEL);
-	if (NULL == em_cam->grab) {
+	rear_em_cam->grab = kzalloc(sizeof(*rear_em_cam->grab), GFP_KERNEL);
+	if (NULL == rear_em_cam->grab) {
 		err("%s: grab buffer allocation failed\n", CAM_NAME);
 		goto out_kfifo_free_deq_done;
 	}
 
-	init_waitqueue_head(&em_cam->grab->proc_list);
-	init_waitqueue_head(&em_cam->grab->cam_queing_waitq);
+	init_waitqueue_head(&rear_em_cam->grab->proc_list);
+	init_waitqueue_head(&rear_em_cam->grab->cam_queing_waitq);
 
 	/*allocate memory space*/
-	ret = kfifo_lock_alloc(&em_cam->grab->enq);
+	ret = kfifo_lock_alloc(&rear_em_cam->grab->enq);
 	if (ret) {
 		err("%s: enq fifo allocation failed\n", CAM_NAME);
 		goto out_kfree_grab;
 	}
 
 	/*allocate memory space*/
-	ret = kfifo_lock_alloc(&em_cam->grab->queingq);
+	ret = kfifo_lock_alloc(&rear_em_cam->grab->queingq);
 	if (ret) {
 		err("%s: queingq fifo allocation failed\n", CAM_NAME);
 		goto out_kfifo_free_enq;
 	}
 
 	/*allocate memory space for the video device member in 'cam'*/
-	em_cam->vdev = video_device_alloc();
-	if (NULL == em_cam->vdev) {
+	rear_em_cam->vdev = video_device_alloc();
+	if (NULL == rear_em_cam->vdev) {
 		err("%s: video_device_alloc() failed!\n", CAM_NAME);
 		goto out_kfifo_free_queingq;
 	}
 
-	/*copy the inforamtion to em_cam->vdev,construct this member structure
+	/*copy the inforamtion to rear_em_cam->vdev,construct this member structure
 	 why not setting in directly? */
-	memcpy(em_cam->vdev, &emxx_cam_template, sizeof(emxx_cam_template));
+	memcpy(rear_em_cam->vdev, &emxx_cam_template, sizeof(emxx_cam_template));
 	/* connect cam with the cam->video_dev->driver_data, *
 	 * make the driver and device as one gather          */
-	video_set_drvdata(em_cam->vdev, em_cam);
+	video_set_drvdata(rear_em_cam->vdev, rear_em_cam);
 
 	/* register v4l device */
-	ret = video_register_device(em_cam->vdev, VFL_TYPE_GRABBER, video_nr);
+	ret = video_register_device(rear_em_cam->vdev, VFL_TYPE_GRABBER, video_nr);
 
 	if (ret) {
 		err("%s: video_register_device() failed!\n", CAM_NAME);
@@ -4365,31 +4366,31 @@ static int emxx_cam_register(int flag)
 	}
 
 	/* initialize the spinlock */
-	spin_lock_init(&em_cam->cam_lock);
+	spin_lock_init(&rear_em_cam->cam_lock);
 
 #ifdef CONFIG_PROC_FS
 	/* filesystem proc node create, make read and *
 	 * write function for R/W available           */
-	create_proc_emxx_cam(em_cam);
+	create_proc_emxx_cam(rear_em_cam);
 #endif
 
 	FNC_EXIT(ret)
 	return 0;
 
 out_video_device_release:
-	video_device_release(em_cam->vdev);
+	video_device_release(rear_em_cam->vdev);
 out_kfifo_free_queingq:
-	kfifo_lock_free(em_cam->grab->queingq);
+	kfifo_lock_free(rear_em_cam->grab->queingq);
 out_kfifo_free_enq:
-	kfifo_lock_free(em_cam->grab->enq);
+	kfifo_lock_free(rear_em_cam->grab->enq);
 out_kfree_grab:
-	kfree(em_cam->grab);
-	em_cam->grab = NULL;
+	kfree(rear_em_cam->grab);
+	rear_em_cam->grab = NULL;
 out_kfifo_free_deq_done:
-	kfifo_lock_free(em_cam->deq_done);
+	kfifo_lock_free(rear_em_cam->deq_done);
 out_kfree_cam:
-	kfree(em_cam);
-	em_cam = NULL;
+	kfree(rear_em_cam);
+	rear_em_cam = NULL;
 out_emxx_cam_register:
 
 	FNC_EXIT(ret)
@@ -4401,19 +4402,19 @@ static int emxx_cam_unregister(void)
 	int ret = 0;
 	FNC_ENTRY;
 
-	video_unregister_device(em_cam->vdev);
+	video_unregister_device(rear_em_cam->vdev);
 
 #ifdef CONFIG_PROC_FS
-	destroy_proc_emxx_cam(em_cam);
+	destroy_proc_emxx_cam(rear_em_cam);
 #endif
 
-	kfifo_lock_free(em_cam->grab->queingq);
-	kfifo_lock_free(em_cam->grab->enq);
-	kfree(em_cam->grab);
-	em_cam->grab = NULL;
-	kfifo_lock_free(em_cam->deq_done);
-	kfree(em_cam);
-	em_cam = NULL;
+	kfifo_lock_free(rear_em_cam->grab->queingq);
+	kfifo_lock_free(rear_em_cam->grab->enq);
+	kfree(rear_em_cam->grab);
+	rear_em_cam->grab = NULL;
+	kfifo_lock_free(rear_em_cam->deq_done);
+	kfree(rear_em_cam);
+	rear_em_cam = NULL;
 
 	FNC_EXIT(ret)
 	return ret;
@@ -4431,7 +4432,7 @@ static int emxx_cam_suspend(struct platform_device *dev, pm_message_t state)
 
 	switch (state.event) {
 	case PM_EVENT_SUSPEND:
-		if (em_cam->open_count)
+		if (rear_em_cam->open_count)
 			ret = -EBUSY;
 		break;
 	default:
@@ -4462,7 +4463,7 @@ static int emxx_cam_probe(struct platform_device *devptr)
 	/*connect the cam to platform device,
 	make cam as the device private member*/
 	else
-		platform_set_drvdata(devptr, em_cam);
+		platform_set_drvdata(devptr, rear_em_cam);
 
 	/*register cam IF for EMEV module*/
 	ret = emxx_camif_register();
@@ -4470,15 +4471,15 @@ static int emxx_cam_probe(struct platform_device *devptr)
 		goto out_emxx_cam_unregister;
 
 	/*register cam hw*/
-	ret = emxx_cam_hw_register(&em_cam->hw);
+	ret = emxx_rear_cam_hw_register(&rear_em_cam->hw);
 	if (ret)
 		goto out_emxx_camif_unregister;
 
 	/* initial cam sensor*/
-	if (em_cam->hw.prepare) {
-		em_cam->pre.actions = 0;
+	if (rear_em_cam->hw.prepare) {
+		rear_em_cam->pre.actions = 0;
 		/* get the prepare information */
-		ret = em_cam->hw.prepare(&em_cam->pre);
+		ret = rear_em_cam->hw.prepare(&rear_em_cam->pre);
 		if (ret) {
 			FNC_EXIT(ret)
 			return ret;
@@ -4487,15 +4488,15 @@ static int emxx_cam_probe(struct platform_device *devptr)
 		err("%s: hw.prepare() nothing!\n", CAM_NAME);
 	}
 
-	em_cam->ipu  = CAM_IPU_OFF;/* this flag is not clear enough */
+	rear_em_cam->ipu  = CAM_IPU_OFF;/* this flag is not clear enough */
 
-	em_cam->sequence = 0;
+	rear_em_cam->sequence = 0;
 
-	/* em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_NV12);
-	em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_NV422);*/
-	em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_YUV420);
+	/* rear_em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_NV12);
+	rear_em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_NV422);*/
+	rear_em_cam->fmt = format_by_pixelformat(V4L2_PIX_FMT_YUV420);
 
-	/* get the em_cam->c= em_cam->pre.bounds */
+	/* get the rear_em_cam->c= rear_em_cam->pre.bounds */
 	cam_reset_update();
 
 	/* Pin select
@@ -4511,7 +4512,7 @@ static int emxx_cam_probe(struct platform_device *devptr)
 	writel(0x00000000, CHG_PINSEL_CAM);
 
 	info("%s : \"%s\" registered device video%d [V4L2]\n",
-	     CAM_NAME, em_cam->hw.name, em_cam->vdev->minor);
+	     CAM_NAME, rear_em_cam->hw.name, rear_em_cam->vdev->minor);
 
 	FNC_EXIT(0)
 	return 0;
@@ -4531,7 +4532,7 @@ static int emxx_cam_remove(struct platform_device *devptr)
 	int ret = 0;
 	FNC_ENTRY;
 
-	em_cam->hw.unregister(0);
+	rear_em_cam->hw.unregister(0);
 	emxx_camif_unregister();
 	emxx_cam_unregister();
 	platform_set_drvdata(devptr, NULL);

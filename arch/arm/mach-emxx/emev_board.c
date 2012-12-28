@@ -436,8 +436,6 @@ static struct platform_device *devs[] __initdata = {
 	&emxx_sensors_plat,
 #endif
 };
-
-
 static struct i2c_board_info emev_i2c_devices[] = {
 #if defined(CONFIG_AXP192)
 	{
@@ -451,9 +449,11 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_EXTIO1_NAME, I2C_SLAVE_EXTIO1_ADDR),
 	},
+#if 0
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_EXTIO2_NAME, I2C_SLAVE_EXTIO2_ADDR),
 	},
+#endif
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_HDMI_NAME,   I2C_SLAVE_HDMI_ADDR),
 	},
@@ -473,15 +473,14 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  I2C_BOARD_INFO(I2C_SLAVE_NTSC_DEC_NAME, I2C_SLAVE_NTSC_DEC_ADDR),
 	},
 #endif
-#if defined(CONFIG_VIDEO_EMXX_CAMERA) || \
-		defined(CONFIG_VIDEO_EMXX_CAMERA_MODULE)
+//#if defined(CONFIG_VIDEO_EMXX_CAMERA) || defined(CONFIG_VIDEO_EMXX_CAMERA_MODULE)
 	{
-	  I2C_BOARD_INFO(I2C_SLAVE_CAM_NAME,    I2C_SLAVE_CAM_ADDR),
+	  I2C_BOARD_INFO(I2C_SLAVE_CAM_NAME_GC0307,    I2C_SLAVE_CAM_ADDR_GC0307),
 	},
-	{
-	  I2C_BOARD_INFO(I2C_SLAVE_CAM_AF_NAME, I2C_SLAVE_CAM_AF_ADDR),
-	},
-#endif
+//	{
+//	  I2C_BOARD_INFO(I2C_SLAVE_CAM_AF_NAME, I2C_SLAVE_CAM_AF_ADDR),
+//	},
+//#endif
 #ifdef CONFIG_TOUCHSCREEN_I2C_PIXCIR
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_I2C_PIXCIR_NAME, I2C_SLAVE_I2C_PIXCIR_ADDR),
