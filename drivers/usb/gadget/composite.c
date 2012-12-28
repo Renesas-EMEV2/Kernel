@@ -1131,20 +1131,19 @@ composite_switch_work(struct work_struct *data)
 	struct usb_configuration *config = cdev->config;
 	int connected;
 	unsigned long flags;
+	// by hengai. 2012-01-31.
+	// combine connect&config to one report
+	connected = 0;
+	if(cdev->connected) connected |= 0x01;
+	if(config && config->bConfigurationValue) connected |= 0x02;
 
 	spin_lock_irqsave(&cdev->lock, flags);
-	if (cdev->connected != cdev->sw_connected.state) {
-		connected = cdev->connected;
+	if (connected != cdev->sw_connected.state) {
 		spin_unlock_irqrestore(&cdev->lock, flags);
 		switch_set_state(&cdev->sw_connected, connected);
 	} else {
 		spin_unlock_irqrestore(&cdev->lock, flags);
 	}
-
-	if (config)
-		switch_set_state(&cdev->sw_config, config->bConfigurationValue);
-	else
-		switch_set_state(&cdev->sw_config, 0);
 }
 
 static int composite_bind(struct usb_gadget *gadget)

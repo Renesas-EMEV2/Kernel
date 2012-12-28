@@ -313,7 +313,7 @@ static struct platform_device android_usb_device = {
 };
 
 static struct usb_mass_storage_platform_data mass_storage_pdata = {
-	.nluns		= 1,
+	.nluns		= 2,	// 0:iNand; 1:SDCard
 	.vendor		= "Renesas.",
 	.product	= "EMMA Mobile",
 	.release	= 0x0100,
