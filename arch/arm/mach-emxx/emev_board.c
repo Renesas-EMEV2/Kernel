@@ -38,6 +38,7 @@
 #endif
 #include <linux/gpio_keys.h>
 #include <linux/input.h>
+#include <linux/emev-rfkill.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -58,7 +59,7 @@
 #include "timer.h"
 
 #ifdef CONFIG_MACH_EMEV
-static int __initdata emxx_serial_ports[] = { 1, 0, 0, 0 };
+static int __initdata emxx_serial_ports[] = { 1, 1, 0, 0 };
 #else
 static int __initdata emxx_serial_ports[] = { 1, 0, 0, 0, 0, 0};
 #endif
@@ -241,6 +242,26 @@ static struct platform_device android_pmem_device = {
 };
 #endif
 
+static struct emev_rfkill_platform_data emev_rfkill = {
+       .nshutdown_gpio = BCM_BT_RST,
+};
+
+static struct platform_device emev_bt_rfkill_platform_device = {
+       .name   = "emev-rfkill",
+       .id     = -1,
+       .dev    = {
+               .platform_data  = &emev_rfkill,
+       },
+};
+
+static struct platform_device emev_wifi_rfkill_platform_device = {
+       .name   = "emev-wifirfkill",
+       .id     = -1,
+       .dev    = {
+               .platform_data  = &emev_rfkill,
+       },
+};
+
 /* Android USB gadget  */
 static char *usb_functions_ums[] = { "usb_mass_storage" };
 static char *usb_functions_ums_adb[] = { "usb_mass_storage", "adb" };
@@ -391,6 +412,8 @@ static struct platform_device *devs[] __initdata = {
 #if defined(CONFIG_AXP192_BATTERY)
 	&axp192_battery_decive,
 #endif
+	&emev_bt_rfkill_platform_device,
+	&emev_wifi_rfkill_platform_device,
 #if defined(CONFIG_EMXX_SENSORS)
 	&emxx_sensors_plat,
 #endif

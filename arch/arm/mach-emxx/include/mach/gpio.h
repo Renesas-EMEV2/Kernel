@@ -242,8 +242,8 @@
 #ifdef CONFIG_EMEV_BOARD_EVA
 #define GPIO_ETH	GPIO_P1		/* in  */
 #define GPIO_HDMI_INT	GPIO_P6		/* in  */
-#define GPIO_USB_PPON	GPIO_P117	/* out */
-#define GPIO_USB_OCI	GPIO_P118	/* in  */
+#define GPIO_USB_PPON	0//GPIO_P117	/* out */
+#define GPIO_USB_OCI	0//GPIO_P118	/* in  */
 #elif defined(CONFIG_EMGR_BOARD_EVA)
 #define GPIO_ETH	GPIO_P3		/* in  */
 #define GPIO_HDMI_INT	GPIO_P10	/* in  */
@@ -256,6 +256,12 @@
 /*pixcir pct touchscreeen ic reset*/
 #define GPIO_TOUCHSCREEN_RESET	GPIO_P97
 
+// WIFI & BlueTooth GPIO
+#define BCM_BT_RST			GPIO_P114
+#define BCM_WLAN_BT_EN	GPIO_P115
+#define BCM_WLAN_PDN		GPIO_P116
+#define BCM_WLAN_RST		GPIO_P117
+#define WIFI_WAKE			GPIO_P106
 
 /* EXTIO */
 #define GPIO_SD_WP	GPIO_NULL	/* in  */
