@@ -165,11 +165,18 @@ static struct platform_device emxx_light_device = {
 };
 
 /* Battery */
+#if defined(CONFIG_BATTERY_EMXX)
 static struct platform_device emxx_battery_device = {
 	.name	= "emxx-battery",
 	.id	= -1,
 };
-
+#endif
+#if defined(CONFIG_AXP192_BATTERY)
+static struct platform_device axp192_battery_decive = {
+	.name = "axp192_battery",
+	.id = -1,
+};
+#endif
 /* NAND */
 static struct mtd_partition emxx_nand_partition[] = {
 	{
@@ -290,7 +297,9 @@ static struct platform_device *devs[] __initdata = {
 	&da9052_ts_device,
 	&max7318_key_device,
 	&emxx_light_device,
+#if defined(CONFIG_BATTERY_EMXX)
 	&emxx_battery_device,
+#endif
 	&emxx_nand_device,
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
@@ -299,10 +308,19 @@ static struct platform_device *devs[] __initdata = {
 	&usb_mass_storage_device,
 	&android_usb_device,
 #endif
+#if defined(CONFIG_AXP192_BATTERY)
+	&axp192_battery_decive,
+#endif
 };
 
 
 static struct i2c_board_info emev_i2c_devices[] = {
+#if defined(CONFIG_AXP192)
+	{
+		I2C_BOARD_INFO(I2C_SLAVE_I2C_AXP192_NAME,	I2C_SLAVE_I2C_AXP192_ADDR),
+		.irq = INT_GPIO_0,
+	},
+#endif
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_RTC_NAME,    I2C_SLAVE_RTC_ADDR),
 	},

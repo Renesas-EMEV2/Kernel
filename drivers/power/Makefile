@@ -35,3 +35,4 @@ obj-$(CONFIG_BATTERY_MAX17040)	+= max17040_battery.o
 obj-$(CONFIG_BATTERY_Z2)	+= z2_battery.o
 obj-$(CONFIG_CHARGER_PCF50633)	+= pcf50633-charger.o
 obj-$(CONFIG_BATTERY_EMXX)	+= emxx_battery.o
+obj-$(CONFIG_AXP192_BATTERY)	+= axp192_battery.o

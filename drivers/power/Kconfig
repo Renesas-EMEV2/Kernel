@@ -146,4 +146,9 @@ config BATTERY_EMXX
 	tristate "EMMA Mobile series battery driver"
 	depends on ARCH_EMXX
 
+config AXP192_BATTERY
+	bool "AXP192 Battery driver"
+	depends on AXP192
+	default y
+
 endif # POWER_SUPPLY

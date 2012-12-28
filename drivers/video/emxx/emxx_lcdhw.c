@@ -20,6 +20,35 @@
  * Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335, USA.
  */
 
+/* 2010-12-27 hengai
+ *     Turn off lcd backlight when suspend
+ *
+ *
+ * GPIO_P104: LCD backlight, high=on, low=off
+ * GPIO_p103: LCD Reset, input, always pull up
+ * GPIO_P150: 5V EN, high=on
+ * GPIO_P27 : HDMI HPD, input
+ * GPIO_P99 : LCD_DISPLAY(LCD_ON), high=on
+ *                          LCD          HDMI     suspend
+ * LCD DISP(104)   IN       pull up       up       up
+ * LCD RST(103)    OUT       1            0        0
+ * HDMI HPD(27)    IN       pull down     dn       dn
+ *
+ * 2010-01-26
+ * LCD panel has 2 control: display and bklight. Always we must use 2 GPIO control it,
+ *	but in our PCB, it only use 1 GPIO_P104, so we must adjust PWM to close bklight
+ *	before GPIO_P104 open, it avoid lcd white splash when open GPIO_P104
+ *  A) LCD DISP ON--->fill frame buf-->LCD BK ON (use 2 GPIO control)
+ *  B) PWM=off-->fill frame buf-->LCD DISP ON-->PWM=on (our PCB, only 1 GPIO)
+ *
+ * I remove HDMI HPD(GPIO_P27), must modify in u-boot, otherwise LCD maybe does not display
+ *	set HPD gpio_input and pull down
+ * 2011-01-27 hengai
+ *	correct some description for GPIO
+ *
+ * 2011-03-22 hengai
+ *	Add GPIO_P99 to LCD_DISPLAY, now we have 2 GPIO control
+ */
 
 /********************************************************
  *  Definitions                                         *
@@ -582,7 +611,8 @@ int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
 		/* HDMI */
 		change_pinsel_hdmi();
-		unreset_usi3();
+		/* No using spi for livall
+		unreset_usi3();*/
 		break;
 	}
 
@@ -887,10 +917,18 @@ void lcd_hw_backlight_off(void)
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 		printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
-		/* LED1_EN:OFF LED1_RAMP:OFF LED2_EN:OFF LED2_RAMP:OFF */
-		pwc_write(DA9052_LEDCONT_REG, 0x00, 0x0f);
-		/* BOOST_EN:OFF LED1_IN_EN:OFF LED2_IN_EN:OFF */
-		pwc_write(DA9052_BOOST_REG, 0x00, 0x07);
+		gpio_direction_output(GPIO_P104, 0);		//LCD BK
+		mdelay(5);
+		gpio_direction_output(GPIO_P99,0);
+	}
+	else {
+		printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight Off>\n");
+		gpio_direction_output(GPIO_P104, 0);            //LCD BK
+		mdelay(5);
+		gpio_direction_output(GPIO_P99,0);
+		writel(readl(CHG_PINSEL_G096) | (0x1 << 24),CHG_PINSEL_G096);
+		gpio_direction_output(GPIO_P120, 1);
 	}
 }
 
@@ -906,11 +944,10 @@ void lcd_hw_backlight_on(void)
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 		printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 		printk_dbg((_DEBUG_LCDHW & 0x40), "<backlight On>\n");
-		mdelay(110);
-		/* BOOST_EN:ON LED1_IN_EN:ON LED2_IN_EN:ON */
-		pwc_write(DA9052_BOOST_REG, 0x07, 0x07);
-		 /* LED1_EN:ON LED1_RAMP:ON LED2_EN:ON LED2_RAMP:ON */
-		pwc_write(DA9052_LEDCONT_REG, 0x0f, 0x0f);
+		gpio_direction_output(GPIO_P99,1);
+		mdelay(160);
+		gpio_direction_output(GPIO_P104, 1);		//LCD BK
+		gpio_direction_output(GPIO_P150, 1);
 	}
 }
 
@@ -1029,7 +1066,7 @@ static inline void change_pinsel_wvga(void)
 	/********************************/
 	printk_dbg(_DEBUG_LCDHW,
 	 "SMU_LCDLCLKDIV = 0x%08x\n", readl(SMU_LCDLCLKDIV));
-	writel(0x00000009, SMU_LCDLCLKDIV); /* 229.376Mhz / 10 = 22.938Mhz */
+	writel(0x00000006, SMU_LCDLCLKDIV); /* 229.376Mhz / 7 = 32.768Mhz */
 
 #ifdef CONFIG_MACH_EMEV
 	/* select the GPIO pin functions GIO_P18 - GIO_P23, GIO_P32 - GIO_P43 */
@@ -1188,9 +1225,10 @@ static void lcd_hw_init(void)
 
 	unreset_lcdc();
 
+	/* No using spi for livall
 	if ((lcdc_output_mode == EMXX_FB_OUTPUT_MODE_HDMI_1080I) ||
 	    (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_HDMI_720P))
-		unreset_usi3();
+		unreset_usi3();*/
 }
 
 
@@ -1367,11 +1405,16 @@ static inline void lcd_controller_hw_init_lcdsize(void)
 ******************************************************************************/
 void lcd_module_hw_unreset(void)
 {
+#if 0
 	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD) {
 		gpio_direction_output(GPIO_LCD_RST, 0x1);
 		mdelay(1);
 	}
+#endif
+	/* initialize LCD RST GPIO. input, pull up */
+	gpio_direction_input(GPIO_LCD_RST);
+	writel((readl(CHG_PULL11) | 0x00005000), CHG_PULL11);
 }
 
 
@@ -1383,9 +1426,11 @@ void lcd_module_hw_unreset(void)
 ******************************************************************************/
 void lcd_module_hw_reset(void)
 {
+#if 0
 	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_LCD)
 		gpio_direction_output(GPIO_LCD_RST, 0x0);
+#endif
 }
 
 

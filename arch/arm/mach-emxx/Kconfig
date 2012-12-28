@@ -259,4 +259,10 @@ endif
 
 endmenu
 
+config AXP192
+	bool "AXP192 driver(PMIC)"
+	default y
+	help
+	  I2C PMIC, include battery detect
+
 endif
