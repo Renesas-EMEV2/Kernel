@@ -373,7 +373,7 @@ emxx_sdc_detect_irq(int irq, void *dev_id)
 	else
 		host->connect = 1;
 
-	mmc_detect_change(host->mmc, msecs_to_jiffies(100));
+	mmc_detect_change(host->mmc, msecs_to_jiffies(1000));
 
 	return IRQ_HANDLED;
 }

@@ -48,6 +48,8 @@ struct emxx_hcd_work	*pg_hcd_work;
 static int _emxx_hc_start(struct usb_hcd *hcd);
 static void _emxx_hc_stop(struct usb_hcd *hcd);
 static void _emxx_vbus_control(int on_flag);
+static void _emxx_ehci_save_register(struct usb_hcd *hcd);
+static void _emxx_ehci_load_register(struct usb_hcd *hcd);
 
 #ifdef CONFIG_PM
 static void emxx_ehci_idle_suspend(void);
@@ -147,7 +149,7 @@ static void _emxx_reset_controller(struct work_struct *work)
 
 	if (hcd != NULL) {
 
-		_emxx_ohci_save_register();
+		_emxx_ehci_save_register(hcd);
 		usb_remove_root_hub(hcd);
 		msleep(1000);
 		_emxx_hc_stop(hcd);
@@ -155,7 +157,7 @@ static void _emxx_reset_controller(struct work_struct *work)
 		msleep(100);
 
 		_emxx_hc_start(hcd);
-		_emxx_ohci_load_register();
+		_emxx_ehci_load_register(hcd);
 		usb_add_root_hub(hcd, INT_USBH, IRQF_DISABLED | IRQF_SHARED);
 
 	}
@@ -437,10 +439,10 @@ static void _emxx_vbus_control(int on_flag)
 {
 	if (on_flag) {
 		pr_debug("VBUS ON\n");
-		gpio_set_value(USB_VBUS_GPIO, 1);
+		//gpio_set_value(USB_VBUS_GPIO, 1);
 	} else {
 		pr_debug("VBUS OFF\n");
-		gpio_set_value(USB_VBUS_GPIO, 0);
+		//gpio_set_value(USB_VBUS_GPIO, 0);
 		pg_hcd_work->vbus_flag = 1;
 	}
 }
@@ -485,7 +487,7 @@ static void _emxx_relinquish_port(struct usb_hcd *hcd, int portnum)
 		pr_debug(" --- Reset Host Controller\n");
 		p_work->relinquish_count++;
 		_emxx_vbus_control(0);
-		disable_irq(INT_USB_OCI);
+		//disable_irq(INT_USB_OCI);
 		emxx_hc_fatal_recovery(hcd);
 
 		return;
@@ -515,11 +517,13 @@ static int _emxx_port_handed_over(struct usb_hcd *hcd, int portnum)
 */
 static int _emxx_over_current_check(void)
 {
+#if 0
 	if (gpio_get_value(GPIO_USB_OCI) == 0) {
 		_emxx_vbus_control(0);
 		err("***** USB Over Current !!\n");
 		return 1;
 	} else
+#endif
 		return 0;
 }
 
@@ -547,6 +551,7 @@ static int _emxx_hub_control(
 
 	/*---------------------------------------------------------------*/
 	/* VBUS ON/OFF control */
+#if 0
 	if (retval == 0) {
 		if (wValue == USB_PORT_FEAT_POWER) {
 			if (typeReq == SetPortFeature) {
@@ -563,6 +568,7 @@ static int _emxx_hub_control(
 			}
 		}
 	}
+#endif
 
 	return retval;
 }
@@ -571,12 +577,14 @@ static int _emxx_hub_control(
 /*
  * Over Current (GPIO118) Interrupt
 */
+#if 0
 static irqreturn_t _emxx_over_current_irq(int irq, void *_hcd)
 {
 	_emxx_over_current_check();
 
 	return IRQ_HANDLED;
 }
+#endif
 
 /*-------------------------------------------------------------------------*/
 /*
@@ -683,6 +691,7 @@ static int _emxx_hcd_probe(
 		goto err2;
 	}
 
+#if 0
 	set_irq_type(INT_USB_OCI, IRQ_TYPE_EDGE_BOTH);
 	retval = request_irq(INT_USB_OCI,
 				_emxx_over_current_irq,
@@ -694,6 +703,7 @@ static int _emxx_hcd_probe(
 		goto err3;
 	}
 	disable_irq(INT_USB_OCI);
+#endif
 
 #ifdef CONFIG_PM
 	emxx_pm_ehci_idle_suspend = emxx_ehci_idle_suspend;
@@ -720,7 +730,7 @@ static int _emxx_hcd_probe(
 
 	_emxx_hc_stop(hcd);
 
-	free_irq(INT_USB_OCI, hcd);
+	//free_irq(INT_USB_OCI, hcd);
 
 #ifdef CONFIG_PM
 	emxx_pm_ehci_idle_suspend = NULL;
@@ -748,7 +758,7 @@ static void _emxx_hcd_remove(struct usb_hcd *hcd, struct platform_device *pdev)
 {
 	usb_remove_hcd(hcd);
 	_emxx_hc_stop(hcd);
-	free_irq(INT_USB_OCI, hcd);
+	//free_irq(INT_USB_OCI, hcd);
 	iounmap(hcd->regs);
 	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	usb_put_hcd(hcd);
@@ -844,7 +854,7 @@ static int ehci_hcd_drv_suspend(
 	if (tmp != EMXX_CONFIG_FLAG)
 		return 0;
 
-	disable_irq(INT_USB_OCI);
+	//disable_irq(INT_USB_OCI);
 	_emxx_vbus_control(0);
 	_emxx_ehci_save_register(hcd);
 	_emxx_hc_stop(hcd);
