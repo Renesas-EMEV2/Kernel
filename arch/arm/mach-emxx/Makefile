@@ -4,7 +4,7 @@
 
 # Common support
 obj-y	:= generic.o gic.o timer.o dma.o pcm_irq.o
-obj-y	+= gpio.o pmu.o pm.o buslim.o
+obj-y	+= gpio.o pmu.o pm.o buslim.o emev_reg_init.o
 obj-m	:=
 obj-n	:=
 obj-	:=

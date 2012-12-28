@@ -335,6 +335,10 @@
 #define GPIO_PWC_LED1	GPIO_PWC_P14	/* out */
 #define GPIO_PWC_LED2	GPIO_PWC_P15	/* out */
 
+/*pixcir pct touchscreeen ic reset*/
+#define GPIO_TOUCHSCREEN_RESET	GPIO_P97
+
+
 /* EXTIO */
 #define GPIO_KEY_OUT0	GPIO_EXT1_P0	/* out */
 #define GPIO_KEY_OUT1	GPIO_EXT1_P1	/* out */

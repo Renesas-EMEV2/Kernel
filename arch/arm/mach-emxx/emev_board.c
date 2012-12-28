@@ -36,6 +36,8 @@
 #include <linux/android_pmem.h>
 #include <linux/usb/android_composite.h>
 #endif
+#include <linux/gpio_keys.h>
+#include <linux/input.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -50,6 +52,7 @@
 #ifdef CONFIG_EMXX_PWC
 #include <mach/pwc.h>
 #endif
+#include <mach/gpio.h>
 
 #include "generic.h"
 #include "timer.h"
@@ -288,6 +291,73 @@ static struct platform_device usb_mass_storage_device = {
 };
 #endif
 
+#ifdef CONFIG_KEYBOARD_GPIO
+static struct gpio_keys_button gpio_buttons[] = {
+	{
+		.gpio		= GPIO_P143,
+		.code		= KEY_POWER,
+		.desc		= "power",
+		.active_low	= 1,
+		.wakeup		= 1,
+	},
+	{
+		.gpio		= GPIO_P13,
+		.code		= KEY_VOLUMEUP,
+		.desc		= "vol up",
+		.active_low	= 1,
+		.wakeup		= 0,
+	},
+	{
+		.gpio		= GPIO_P14,
+		.code		= KEY_VOLUMEDOWN,
+		.desc		= "vol down",
+		.active_low	= 1,
+		.wakeup		= 0,
+	},
+	{
+		.gpio		= GPIO_P15,
+		.code		= KEY_BACK,
+		.desc		= "home",
+		.active_low	= 1,
+		.wakeup 	= 0,
+	},
+	{
+		.gpio		= GPIO_P16,
+		.code		= KEY_MENU,
+		.desc		= "menu",
+		.active_low	= 1,
+		.wakeup 	= 0,
+	},
+	{
+		.gpio		= GPIO_P17,
+		.code		= KEY_SEARCH,
+		.desc		= "back",
+		.active_low	= 1,
+		.wakeup 	= 0,
+	},
+	{
+		.gpio		= GPIO_P26,
+		.code		= KEY_HOME,
+		.desc		= "search",
+		.active_low	= 1,
+		.wakeup		= 0,
+	}
+};
+
+static struct gpio_keys_platform_data gpio_key_info = {
+	.buttons	= gpio_buttons,
+	.nbuttons	= ARRAY_SIZE(gpio_buttons),
+};
+
+static struct platform_device keys_gpio = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &gpio_key_info,
+	},
+};
+#endif
+
 static struct platform_device *devs[] __initdata = {
 #if defined(CONFIG_SMSC911X) || defined(CONFIG_SMSC911X_MODULE)
 	&smc91x_device,
@@ -308,6 +378,10 @@ static struct platform_device *devs[] __initdata = {
 	&usb_mass_storage_device,
 	&android_usb_device,
 #endif
+#ifdef CONFIG_KEYBOARD_GPIO
+	&keys_gpio,
+#endif
+
 #if defined(CONFIG_AXP192_BATTERY)
 	&axp192_battery_decive,
 #endif
@@ -354,6 +428,12 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	},
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_CAM_AF_NAME, I2C_SLAVE_CAM_AF_ADDR),
+	},
+#endif
+#ifdef CONFIG_TOUCHSCREEN_I2C_PIXCIR
+	{
+	  I2C_BOARD_INFO(I2C_SLAVE_I2C_PIXCIR_NAME, I2C_SLAVE_I2C_PIXCIR_ADDR),
+	  .irq = INT_GPIO_29,
 	},
 #endif
 };
