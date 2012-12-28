@@ -47,8 +47,9 @@ struct pixcir_i2c_ts_data{
 	struct i2c_client *client;
 	struct input_dev *input;
 	struct delayed_work work;
-	struct timer_list tmr_reset;
 	int irq;
+	struct workqueue_struct *reset_wq;
+	struct work_struct reset_work;
 };
 
 static struct pixcir_i2c_ts_data *m_ts;
@@ -92,23 +93,13 @@ static inline void emxx_ts_connect(void)
 	printk( "CHG_PULL1 = 0x%08x\n", readl(CHG_PULL1));
 #endif
 }
+
+static void resume_reset(struct work_struct *work)
+{
+	printk("pixcir touchscreen resume reset\n\n\n");
+	pixcir_reset(300);
+}
 #endif
-
-static void pixcir_ts_timer_reset(unsigned long data)
-{
-	struct pixcir_i2c_ts_data *tsdata = (struct pixcir_i2c_ts_data *)data;
-	pixcir_do_reset(0);
-	enable_irq(tsdata->irq);
-}
-
-static void pixcir_ts_do_delay_reset(struct pixcir_i2c_ts_data *tsdata, int do_disable_irq)
-{
-	//Must do reset 1000ms after resume. This will disable irq, and it will enable_irq in timer_reset
-	if(do_disable_irq) disable_irq(tsdata->irq);
-	pixcir_do_reset(1);
-	tsdata->tmr_reset.expires = jiffies+HZ;
-	add_timer(&tsdata->tmr_reset);
-}
 
 static void pixcir_ts_poscheck(struct work_struct *work)
 {
@@ -273,14 +264,6 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 	tsdata->client = client;
 	tsdata->input = input;
 
-	INIT_WORK(&tsdata->work.work,pixcir_ts_poscheck);
-	//INIT_DELAYED_WORK(&tsdata->work, pixcir_ts_poscheck);
-
-	tsdata->irq = client->irq;
-#ifdef DEBUG
-	printk("irq number is %d\n", tsdata->irq);
-#endif
-
 	if(input_register_device(input)){
 		input_free_device(input);
  		kfree(tsdata);
@@ -289,13 +272,26 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 #ifdef CONFIG_MACH_EMEV
 	emxx_ts_connect();
 #endif
+
+	tsdata->reset_wq = create_singlethread_workqueue("pixcir_reset");
+	if(!tsdata->reset_wq)
+		dev_err(&client->dev, "Unable to create workqueue,\
+				touchscreen may not work after resume\n");
+
+	INIT_WORK(&tsdata->reset_work, resume_reset);
+
+	INIT_WORK(&tsdata->work.work,pixcir_ts_poscheck);
+	//INIT_DELAYED_WORK(&tsdata->work, pixcir_ts_poscheck);
+
+	tsdata->irq = client->irq;
+#ifdef DEBUG
+	printk("irq number is %d\n", tsdata->irq);
+#endif
 	if(request_irq(tsdata->irq,pixcir_ts_isr,IRQF_TRIGGER_FALLING,client->name,tsdata)){
 		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
 		input_unregister_device(input);
 		input=NULL;
 	}
-	tsdata->tmr_reset.expires  = jiffies + HZ;
-	setup_timer(&tsdata->tmr_reset, pixcir_ts_timer_reset, (unsigned long)tsdata);
 
 	device_init_wakeup(&client->dev, 0);
 
@@ -314,6 +310,8 @@ static int pixcir_i2c_ts_remove(struct i2c_client *client)
 {
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
 	free_irq(tsdata->irq, tsdata);
+	if(tsdata->reset_wq)
+		destroy_workqueue(tsdata->reset_wq);
 	input_unregister_device(tsdata->input);
 	kfree(tsdata);
 	dev_set_drvdata(&client->dev, NULL);
@@ -323,7 +321,6 @@ static int pixcir_i2c_ts_remove(struct i2c_client *client)
 static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
-	disable_irq(tsdata->irq);
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(tsdata->irq);
 
@@ -333,7 +330,8 @@ static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 static int pixcir_i2c_ts_resume(struct i2c_client *client)
 {
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
-	pixcir_ts_do_delay_reset(tsdata, 0);	//Because it do disable_irq in suspend()
+
+	queue_work(tsdata->reset_wq, &tsdata->reset_work);
 
 	if (device_may_wakeup(&client->dev))
 		disable_irq_wake(tsdata->irq);
