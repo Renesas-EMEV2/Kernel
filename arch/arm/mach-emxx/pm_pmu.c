@@ -69,6 +69,7 @@ static unsigned int pmu_count;
 static struct register_state_t reg_state;
 static unsigned int wdt_op_reg;
 
+extern void axp192_poweroff(void);
 /*
  * INT mask and unmask
  * ----
@@ -95,7 +96,8 @@ static int pmu_int_mask(int mask)
 		for (i = 32; i < max_irq; i += 32)
 			writel(MASK_INT_ALL, GIC_000_IDS + i * 4 / 32);
 
-		writel(RESUME_INT_1, GIC_096_IEN);
+		//writel(RESUME_INT_1, GIC_096_IEN);
+		writel(RESUME_INT_8, GIC_096_IEN);
 		/* set sec int, include MEMC, ABx and AFS */
 		writel(SEC_ERR_INT, GIC_160_IEN);
 
@@ -132,7 +134,6 @@ static int pmu_int_mask(int mask)
 static int pmu_gpio_mask(int flag)
 {
 	struct gpio_state *gpio = &reg_state.gpio;
-	struct pwc_state *pwc = &reg_state.pwc;
 
 	/* GPIO/PowerIC_GPIO Interrupt Enable/Disable */
 	switch (flag) {
@@ -149,11 +150,6 @@ static int pmu_gpio_mask(int flag)
 		outl(gpio->ien2, GIO_064_IEN);
 		outl(gpio->ien3, GIO_096_IEN);
 		outl(gpio->ien4, GIO_128_IEN);
-
-		pwc_reg_write(DA9052_IRQMASKA_REG, pwc->mask_a); /* 10 */
-		pwc_reg_write(DA9052_IRQMASKB_REG, pwc->mask_b); /* 11 */
-		pwc_reg_write(DA9052_IRQMASKC_REG, pwc->mask_c); /* 12 */
-		pwc_reg_write(DA9052_IRQMASKD_REG, pwc->mask_d); /* 13 */
 
 		break;
 	case EMXX_PMU_CLK_SLEEP:
@@ -173,24 +169,8 @@ static int pmu_gpio_mask(int flag)
 		outl(MASK_GPIO_ALL, GIO_128_IDS);
 
 		/* unmask PMIC to GPIO interrupt(GPIO00) */
-		outl(GPIO_INT_PWRIC, GIO_000_IEN);
-
-		/* read pmic interrupt */
-		pwc_reg_read(DA9052_IRQMASKA_REG, &pwc->mask_a);
-		pwc_reg_read(DA9052_IRQMASKB_REG, &pwc->mask_b);
-		pwc_reg_read(DA9052_IRQMASKC_REG, &pwc->mask_c);
-		pwc_reg_read(DA9052_IRQMASKD_REG, &pwc->mask_d);
-		/* mask all pmic interrupt */
-		pwc_reg_write(DA9052_IRQMASKA_REG, 0xff);	/* 10 */
-		pwc_reg_write(DA9052_IRQMASKB_REG, 0xff);	/* 11 */
-		pwc_reg_write(DA9052_IRQMASKC_REG, 0xff);	/* 12 */
-		pwc_reg_write(DA9052_IRQMASKD_REG, 0xff);	/* 13 */
-
-		/* Clear all pmic interrupt flag */
-		pwc_reg_write(DA9052_EVENTA_REG, 0xff);		/* 5 */
-		pwc_reg_write(DA9052_EVENTB_REG, 0xff);		/* 6 */
-		pwc_reg_write(DA9052_EVENTC_REG, 0xff);		/* 7 */
-		pwc_reg_write(DA9052_EVENTD_REG, 0xff);
+		//outl(GPIO_INT_PWRIC, GIO_000_IEN);
+		outl((1 << 15),GIO_128_IEN);
 
 		break;
 	case EMXX_PMU_CLK_POWEROFF:
@@ -201,11 +181,6 @@ static int pmu_gpio_mask(int flag)
 		outl(MASK_GPIO_ALL, GIO_096_IDS);
 		outl(MASK_GPIO_ALL, GIO_128_IDS);
 
-		/* mask all pmic interrupt */
-		pwc_write(DA9052_IRQMASKA_REG, 0xff, 0xff);
-		pwc_write(DA9052_IRQMASKB_REG, 0xff, 0xff);
-		pwc_write(DA9052_IRQMASKC_REG, 0xff, 0xff);
-		pwc_write(DA9052_IRQMASKD_REG, 0xff, 0xff);
 		break;
 	default:
 		return -EINVAL;
@@ -1124,56 +1099,6 @@ static void pmu_set_command_sequence(unsigned int sleep_flag)
 #if PM_CONTROL_MODE
 static void pw_ic_lowpower(void)
 {
-	unsigned char reg;
-
-	pwc_reg_write(DA9052_GPIO0809_REG, 0x08);	/* 25 */
-	pwc_reg_write(DA9052_ID01_REG, 0x90);		/* 29 */
-	pwc_reg_write(DA9052_BUCKCORE_REG, 0xCB);	/* 46 */
-
-	pwc_reg_read(DA9052_BUCKMEM_REG, &reg);		/* 48 */
-	if (reg & BMEM_ENABLE)
-		pwc_reg_write(DA9052_BUCKMEM_REG, reg | BMEM_CONF);
-
-	pwc_reg_read(DA9052_BUCKPERI_REG, &reg);	/* 49 */
-	if (reg & BPERI_ENABLE)
-		pwc_reg_write(DA9052_BUCKPERI_REG, reg | BPERI_CONF);
-
-	pwc_reg_read(DA9052_LDO2_REG, &reg);            /* 51 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO2_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO3_REG, &reg);		/* 52 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO3_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO4_REG, &reg);		/* 53 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO4_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO6_REG, &reg);		/* 55 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO6_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO7_REG, &reg);		/* 56 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO7_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO8_REG, &reg);		/* 57 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO8_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO9_REG, &reg);		/* 58 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO9_REG, reg | LDO_CONF);
-
-
-	pwc_reg_write(DA9052_BUCKB_REG, 0x88);		/* 45 */
-	pwc_reg_write(DA9052_PDDIS_REG, 0x00);		/* 18 */
-	pwc_reg_write(DA9052_SEQTIMER_REG, 0x11);	/* 43 */
-
-	pwc_reg_write(DA9052_CONTROLC_REG, 0x60);	/* 16 */
-
-
 	/* SMU VDD Wait Setting */
 	writel(0x147, SMU_PLLVDDWAIT);
 }
@@ -1182,92 +1107,12 @@ static void pw_ic_lowpower(void)
 #if !PM_CONTROL_MODE
 static void pw_ic_spi(void)
 {
-	/* setup for deepsleep */
-	pwc_reg_write(DA9052_ID01_REG, 0x90);		/* 29 */
-	pwc_reg_write(DA9052_BUCKCORE_REG, 0xCB);	/* 46 */
-	pwc_reg_write(DA9052_BUCKB_REG, 0x88);		/* 45 */
-	pwc_reg_write(DA9052_PDDIS_REG, 0x40);		/* 18 */
-	pwc_reg_write(DA9052_SEQTIMER_REG, 0xC1);	/* 43 */
-
-	pwc_reg_read(DA9052_BUCKMEM_REG, &reg);		/* 48 */
-	if (reg & BMEM_ENABLE)
-		pwc_reg_write(DA9052_BUCKMEM_REG, reg | BMEM_CONF);
-
-	pwc_reg_read(DA9052_BUCKPERI_REG, &reg);	/* 49 */
-	if (reg & BPERI_ENABLE)
-		pwc_reg_write(DA9052_BUCKPERI_REG, reg | BPERI_CONF);
-
-	pwc_reg_read(DA9052_LDO2_REG, &reg);            /* 51 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO2_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO3_REG, &reg);		/* 52 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO3_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO4_REG, &reg);		/* 53 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO4_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO6_REG, &reg);		/* 55 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO6_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO7_REG, &reg);		/* 56 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO7_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO8_REG, &reg);		/* 57 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO8_REG, reg | LDO_CONF);
-
-	pwc_reg_read(DA9052_LDO9_REG, &reg);		/* 58 */
-	if (reg & LDO_ENABLE)
-		pwc_reg_write(DA9052_LDO9_REG, reg | LDO_CONF);
-
-#ifdef CONFIG_MACH_EMEV
-	/* for DA9052 auto wake. */
-	pwc_reg_write(DA9052_GPIO0809_REG, 0x11);	/* 25 */
-#endif
 }
 #endif
 
 
 static void pw_ic_mask(int sleep_flag)
 {
-	switch (sleep_flag) {
-	case EMXX_PMU_CLK_SLEEP:
-	case EMXX_PMU_CLK_DEEPSLEEP:
-		/* case: enable-key */
-		/* key -> io_exp -> DA9052:GPIO0 */
-#if PM_CONTROL_MODE
-		/* lowpwr */
-		pwc_reg_write(DA9052_GPIO0001_REG, 0x81);	/* 21 */
-#else
-		/* spi */
-		pwc_reg_write(DA9052_GPIO0001_REG, 0x89);	/* 21 */
-#endif
-
-		/* DA9052 irq unmask */
-		/* IO expander0 lines to GPIO0 of DA9052 */
-		pwc_write(DA9052_IRQMASKC_REG, 0x00, MASK_KEY_INT);	/* 12 */
-		/* enable pen down(LCD panel) */
-		pwc_write(DA9052_IRQMASKB_REG, 0x00, MASK_PEN_DOWN_INT);/* 11 */
-		/* enable usb detect(only insert) */
-		pwc_write(DA9052_IRQMASKA_REG, 0x00,
-		 MASK_CHARGER_INT | MASK_ALARM_INT);	/* 10 */
-		pwc_write(DA9052_IRQMASKD_REG, 0x00, MASK_SYS_EN_INT);
-
-		break;
-	case EMXX_PMU_CLK_POWEROFF:
-		pwc_reg_write(DA9052_GPIO0001_REG, 0x89);	/* 21 */
-		pwc_write(DA9052_IRQMASKA_REG, 0x00,
-		 MASK_CHARGER_INT | MASK_ALARM_INT);
-		pwc_write(DA9052_IRQMASKC_REG, 0x00, MASK_KEY_INT);
-		break;
-	default:
-		break;
-	}
 }
 
 
@@ -1292,12 +1137,9 @@ static void pmu_set_regs(unsigned int sleep_flag)
 	/* backup to pmu ram */
 	writel(0x00000000, PMU_RUNCHECK);
 	if ((sleep_flag & EMXX_PMU_CLK_MASK) == EMXX_PMU_CLK_DEEPSLEEP) {
-		pwc_reg_read(DA9052_ISET_REG, (unsigned char *)&regval);
+		regval = 0;
 		writel(regval & 0xff, PMU_PWIC_ISET);	/* RAM */
-		pwc_reg_read(DA9052_CHGBUCK_REG, (unsigned char *)&regval);
 		writel(regval & 0xff, PMU_PWIC_CHGBUCK);
-		pwc_reg_read(DA9052_BUCKCORE_REG,
-		 (unsigned char *)&regval);	/* 46 */
 		writel(regval & 0xff, PMU_PWIC_BUCKCORE);
 	}
 
@@ -1368,41 +1210,12 @@ static void pmu_save_state(void)
 	reg_state.smu.ckrq_mode = readl(SMU_CKRQ_MODE);
 	/* save only. not restore */
 	reg_state.smu.clk_mode_sel = readl(SMU_CLK_MODE_SEL);
-
-	/* da9052 modify register save */
-	pwc_reg_read(DA9052_CONTROLC_REG, &reg_state.pwc.controlc);
-	pwc_reg_read(DA9052_GPIO0001_REG, &reg_state.pwc.gpio0001);
-
-	pwc_reg_read(DA9052_BUCKMEM_REG, &reg_state.pwc.buckmem);
-	pwc_reg_read(DA9052_BUCKPERI_REG, &reg_state.pwc.buckperi);
-
-	pwc_reg_read(DA9052_LDO2_REG, &reg_state.pwc.ldo2);	/* 51 */
-	pwc_reg_read(DA9052_LDO3_REG, &reg_state.pwc.ldo3);	/* 52 */
-	pwc_reg_read(DA9052_LDO4_REG, &reg_state.pwc.ldo4);	/* 53 */
-	pwc_reg_read(DA9052_LDO6_REG, &reg_state.pwc.ldo6);	/* 55 */
-	pwc_reg_read(DA9052_LDO7_REG, &reg_state.pwc.ldo7);	/* 56 */
-	pwc_reg_read(DA9052_LDO8_REG, &reg_state.pwc.ldo8);	/* 57 */
-	pwc_reg_read(DA9052_LDO9_REG, &reg_state.pwc.ldo9);	/* 58 */
 }
 
 static void pmu_restore_state(void)
 {
 	/* modified register restore */
 	writel(reg_state.smu.ckrq_mode, SMU_CKRQ_MODE);
-
-	pwc_reg_write(DA9052_CONTROLC_REG, reg_state.pwc.controlc);
-	pwc_reg_write(DA9052_GPIO0001_REG, reg_state.pwc.gpio0001);
-
-	pwc_reg_write(DA9052_BUCKMEM_REG, reg_state.pwc.buckmem);
-	pwc_reg_write(DA9052_BUCKPERI_REG, reg_state.pwc.buckperi);
-
-	pwc_reg_write(DA9052_LDO2_REG, reg_state.pwc.ldo2);     /* 51 */
-	pwc_reg_write(DA9052_LDO3_REG, reg_state.pwc.ldo3);     /* 52 */
-	pwc_reg_write(DA9052_LDO4_REG, reg_state.pwc.ldo4);     /* 53 */
-	pwc_reg_write(DA9052_LDO6_REG, reg_state.pwc.ldo6);     /* 55 */
-	pwc_reg_write(DA9052_LDO7_REG, reg_state.pwc.ldo7);     /* 56 */
-	pwc_reg_write(DA9052_LDO8_REG, reg_state.pwc.ldo8);	/* 57 */
-	pwc_reg_write(DA9052_LDO9_REG, reg_state.pwc.ldo9);	/* 58 */
 }
 
 
@@ -1596,8 +1409,6 @@ static void pmu_do_resume(int sleep_flag)
 			&& (readl(PMU_RUNCHECK) == 0)) {
 		/* not run pmu_code. */
 		regval = readl(PMU_PWIC_BUCKCORE);
-		/* 46 */
-		pwc_reg_write(DA9052_BUCKCORE_REG, (unsigned char)regval);
 	}
 #ifdef PM_DEBUG
 	else
@@ -1645,29 +1456,19 @@ int emxx_pmu_sleep(unsigned int sleep_flag)
 {
 	DPRINTK("emxx_pmu_sleep.. sleep_flag=0x%x\n", sleep_flag);
 
-#ifdef	DEBUG_LED
-	pwc_write(DA9052_GPIO1415_REG, 0x22, 0xFF);	/* off */
-#endif
-
 	/* suspend */
 	pmu_do_suspend(sleep_flag);
 	pmu_do_resume(sleep_flag);
 
-#ifdef	DEBUG_LED
-	pwc_write(DA9052_GPIO1415_REG, 0xaa, 0xFF);	/* on */
-#endif
 	return 0;
 }
 
 int emxx_pm_do_poweroff(void)
 {
 	/* shutdown */
-	pwc_reg_write(DA9052_IRQMASKA_REG, 0x40);	/* 10 */
-	pwc_reg_write(DA9052_RESET_REG, 0x41);		/* 20 */
-	pwc_reg_write(DA9052_ID01_REG, 0xB5);		/* 29 */
-	pwc_reg_write(DA9052_BUCKA_REG, 0x98);		/* 44 */
-	pwc_reg_write(DA9052_BUCKB_REG, 0x88);		/* 45 */
-	pwc_reg_write(DA9052_SEQTIMER_REG, 0xC1);	/* 43 */
+	gpio_direction_output(GPIO_P104, 0);//clock LCD backlight
+	gpio_direction_output(GPIO_P150, 0);//close USB power
+	axp192_poweroff();
 
 	/* GPIO Disable */
 	pmu_gpio_mask(EMXX_PMU_CLK_POWEROFF);
@@ -1676,11 +1477,6 @@ int emxx_pm_do_poweroff(void)
 	pmu_int_mask(PMU_INT_ALLMASK);
 	/* Set IRQ of PowerIC */
 	pw_ic_mask(EMXX_PMU_CLK_POWEROFF);
-
-	/* for wake. */
-	pwc_reg_write(DA9052_GPIO0809_REG, 0x11);	/* 25 */
-
-	pwc_reg_write(DA9052_CONTROLB_REG, 0x6D);	/* 15 */
 
 	/* WFI */
 	cpu_do_idle();
@@ -1691,13 +1487,9 @@ int emxx_pm_do_poweroff(void)
 int emxx_pm_do_poweroff_restart(void)
 {
 	/* setup for power down */
-	pwc_write(DA9052_BUCKCORE_REG, 0x18, 0x3F);	/* 46 */
-	pwc_reg_write(DA9052_RESET_REG, 0x41);		/* 20 */
-	pwc_reg_write(DA9052_ID01_REG, 0x95);		/* 29 */
-	pwc_reg_write(DA9052_BUCKB_REG, 0x88);		/* 45 */
-	pwc_reg_write(DA9052_SEQTIMER_REG, 0xC1);
-	/* for DA9052 auto wake. */
-	pwc_reg_write(DA9052_GPIO0809_REG, 0x11);	/* 25 */
+	gpio_direction_output(GPIO_P104, 0);//clock LCD backlight
+	gpio_direction_output(GPIO_P150, 0);//close USB power
+	axp192_poweroff();
 
 	/* GPIO Disable */
 	pmu_gpio_mask(EMXX_PMU_CLK_POWEROFF);
@@ -1708,7 +1500,6 @@ int emxx_pm_do_poweroff_restart(void)
 	pw_ic_mask(EMXX_PMU_CLK_POWEROFF);
 
 	/* power down */
-	pwc_reg_write(DA9052_CONTROLB_REG, 0xAD);
 
 	/* WFI */
 	cpu_do_idle();
@@ -1737,6 +1528,7 @@ int __init emxx_pmu_init(void)
 	writel(0xffffffff, PMU_EHCI_IDLEFLAG);
 	writel(0xffffffff, PMU_OHCI_IDLEFLAG);
 
+	gpio_direction_output(GPIO_P150, 1);
 	return 0;
 }
 

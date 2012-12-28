@@ -27,7 +27,6 @@
 #include <linux/leds.h>
 
 #include <linux/gpio.h>
-#include <mach/pwc.h>
 
 #define DEFAULT_BACKLIGHT_BRIGHTNESS 255
 #define HW_MAX_BRIGHTNESS 95
@@ -44,8 +43,6 @@ emxx_brightness_set(struct led_classdev *led_cdev, enum led_brightness value)
 		hw_val = HW_MIN_BRIGHTNESS;
 	if (hw_val > HW_MAX_BRIGHTNESS)
 		hw_val = HW_MAX_BRIGHTNESS;
-	pwc_reg_write(DA9052_LED1CONT_REG, hw_val);
-	pwc_reg_write(DA9052_LED2CONT_REG, hw_val);
 }
 
 static struct led_classdev emxx_backlight_led = {
@@ -60,12 +57,12 @@ static struct led_classdev emxx_backlight_led = {
 static struct gpio_led emxx_led_list[] = {
 	{
 		.name = "led1",
-		.gpio = GPIO_PWC_LED1,
+		.gpio = GPIO_NULL,
 		.retain_state_suspended = 1,
 	},
 	{
 		.name = "led2",
-		.gpio = GPIO_PWC_LED2,
+		.gpio = GPIO_NULL,
 		.retain_state_suspended = 1,
 	},
 };
@@ -85,14 +82,6 @@ static struct platform_device emxx_leds = {
 static int emxx_light_probe(struct platform_device *pdev)
 {
 	/* Init LCD Backlight */
-	pwc_reg_write(DA9052_LED1CONF_REG, 0xEA);  /* LCD panel max electric
-						      current 15mA, set
-						      14.986mA */
-	pwc_reg_write(DA9052_LED1CONT_REG, 0xDF);
-	pwc_reg_write(DA9052_LED2CONF_REG, 0xEA);  /* LCD panel max electric
-						      current 15mA, set
-						      14.986mA */
-	pwc_reg_write(DA9052_LED2CONT_REG, 0xDF);
 	led_classdev_register(&pdev->dev, &emxx_backlight_led);
 
 	/* Init LED */

@@ -101,19 +101,8 @@ config EMXX_DTV_BUFFERSIZE
 	depends on EMXX_DTV
 	default "8192"
 
-config EMXX_PWC
-	bool
-	depends on EMXX_SPI0
-	default y
-
-config EMXX_EXTIO
-	bool
-	depends on (EMEV_BOARD_EVA || EMGR_BOARD_EVA) && I2C
-	default y
-
 config EMXX_LED
 	bool
-	depends on EMXX_PWC
 	default y
 
 config EMXX_PDMA

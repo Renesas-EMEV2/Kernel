@@ -47,7 +47,7 @@ static void __iomem *emxx_nand_addr;
 
 static int last_nce;
 
-#define EMXX_NAND_WP		GPIO_EXT1_P24
+#define EMXX_NAND_WP		GPIO_NULL
 #define EMXX_NAND_CHKBIT	(0x00000400)	/* 1:nothing, 0: exist */
 
 static void emxx_nand_hwcontrol(struct mtd_info *mtd, int cmd,

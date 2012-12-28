@@ -235,86 +235,9 @@
 
 #define GPIO_GPIO_LAST   GPIO_P159
 
-#define GPIO_PWC_BASE	(GPIO_GPIO_LAST + 1)
-#define GPIO_PWC_P0	(GPIO_PWC_BASE + 0)
-#define GPIO_PWC_P1	(GPIO_PWC_BASE + 1)
-#define GPIO_PWC_P2	(GPIO_PWC_BASE + 2)
-#define GPIO_PWC_P3	(GPIO_PWC_BASE + 3)
-#define GPIO_PWC_P4	(GPIO_PWC_BASE + 4)
-#define GPIO_PWC_P5	(GPIO_PWC_BASE + 5)
-#define GPIO_PWC_P6	(GPIO_PWC_BASE + 6)
-#define GPIO_PWC_P7	(GPIO_PWC_BASE + 7)
-#define GPIO_PWC_P8	(GPIO_PWC_BASE + 8)
-#define GPIO_PWC_P9	(GPIO_PWC_BASE + 9)
-#define GPIO_PWC_P10	(GPIO_PWC_BASE + 10)
-#define GPIO_PWC_P11	(GPIO_PWC_BASE + 11)
-#define GPIO_PWC_P12	(GPIO_PWC_BASE + 12)
-#define GPIO_PWC_P13	(GPIO_PWC_BASE + 13)
-#define GPIO_PWC_P14	(GPIO_PWC_BASE + 14)
-#define GPIO_PWC_P15	(GPIO_PWC_BASE + 15)
-#define GPIO_PWC_LAST	GPIO_PWC_P15
+#define GPIO_LAST	(GPIO_GPIO_LAST)
+#define	GPIO_NULL	(GPIO_LAST+1)
 
-#define GPIO_EXT1_BASE	(GPIO_PWC_LAST + 1)
-#define GPIO_EXT1_P0	(GPIO_EXT1_BASE + 0)
-#define GPIO_EXT1_P1	(GPIO_EXT1_BASE + 1)
-#define GPIO_EXT1_P2	(GPIO_EXT1_BASE + 2)
-#define GPIO_EXT1_P3	(GPIO_EXT1_BASE + 3)
-#define GPIO_EXT1_P4	(GPIO_EXT1_BASE + 4)
-#define GPIO_EXT1_P5	(GPIO_EXT1_BASE + 5)
-#define GPIO_EXT1_P6	(GPIO_EXT1_BASE + 6)
-#define GPIO_EXT1_P7	(GPIO_EXT1_BASE + 7)
-#define GPIO_EXT1_P8	(GPIO_EXT1_BASE + 8)
-#define GPIO_EXT1_P9	(GPIO_EXT1_BASE + 9)
-#define GPIO_EXT1_P10	(GPIO_EXT1_BASE + 10)
-#define GPIO_EXT1_P11	(GPIO_EXT1_BASE + 11)
-#define GPIO_EXT1_P12	(GPIO_EXT1_BASE + 12)
-#define GPIO_EXT1_P13	(GPIO_EXT1_BASE + 13)
-#define GPIO_EXT1_P14	(GPIO_EXT1_BASE + 14)
-#define GPIO_EXT1_P15	(GPIO_EXT1_BASE + 15)
-#define GPIO_EXT1_P16	(GPIO_EXT1_BASE + 16)
-#define GPIO_EXT1_P17	(GPIO_EXT1_BASE + 17)
-#define GPIO_EXT1_P18	(GPIO_EXT1_BASE + 18)
-#define GPIO_EXT1_P19	(GPIO_EXT1_BASE + 19)
-#define GPIO_EXT1_P20	(GPIO_EXT1_BASE + 20)
-#define GPIO_EXT1_P21	(GPIO_EXT1_BASE + 21)
-#define GPIO_EXT1_P22	(GPIO_EXT1_BASE + 22)
-#define GPIO_EXT1_P23	(GPIO_EXT1_BASE + 23)
-#define GPIO_EXT1_P24	(GPIO_EXT1_BASE + 24)
-#define GPIO_EXT1_P25	(GPIO_EXT1_BASE + 25)
-#define GPIO_EXT1_P26	(GPIO_EXT1_BASE + 26)
-#define GPIO_EXT1_P27	(GPIO_EXT1_BASE + 27)
-#define GPIO_EXT1_P28	(GPIO_EXT1_BASE + 28)
-#define GPIO_EXT1_P29	(GPIO_EXT1_BASE + 29)
-#define GPIO_EXT1_P30	(GPIO_EXT1_BASE + 30)
-#define GPIO_EXT1_P31	(GPIO_EXT1_BASE + 31)
-#define GPIO_EXT1_LAST	GPIO_EXT1_P31
-
-#ifdef CONFIG_EMGR_TI_PMIC
-
-#define GPIO_PWC_EXT_BASE	(GPIO_EXT1_LAST + 1)
-#define GPIO_PWC_EXT_P0		(GPIO_PWC_EXT_BASE + 0)
-#define GPIO_PWC_EXT_P1		(GPIO_PWC_EXT_BASE + 1)
-#define GPIO_PWC_EXT_P2		(GPIO_PWC_EXT_BASE + 2)
-#define GPIO_PWC_EXT_P3		(GPIO_PWC_EXT_BASE + 3)
-#define GPIO_PWC_EXT_P4		(GPIO_PWC_EXT_BASE + 4)
-#define GPIO_PWC_EXT_P5		(GPIO_PWC_EXT_BASE + 5)
-#define GPIO_PWC_EXT_P6		(GPIO_PWC_EXT_BASE + 6)
-#define GPIO_PWC_EXT_P7		(GPIO_PWC_EXT_BASE + 7)
-#define GPIO_PWC_EXT_LAST	GPIO_PWC_EXT_P7
-
-#define GPIO_LAST	GPIO_PWC_EXT_LAST
-
-#else /* CONFIG_EMGR_TI_PMIC */
-#define GPIO_LAST	GPIO_EXT1_LAST
-#endif /* CONFIG_EMGR_TI_PMIC */
-
-/* board specific */
-#ifdef CONFIG_EMGR_TI_PMIC
-#define GPIO_PWC	GPIO_PWC_EXT_P0	/* in  */
-#define GPIO_PWC_EXT	GPIO_P0		/* in  */
-#else /* CONFIG_EMGR_TI_PMIC */
-#define GPIO_PWC	GPIO_P0		/* in  */
-#endif /* CONFIG_EMGR_TI_PMIC */
 #define GPIO_JT_SEL	GPIO_P2		/* in  */
 #ifdef CONFIG_EMEV_BOARD_EVA
 #define GPIO_ETH	GPIO_P1		/* in  */
@@ -330,41 +253,31 @@
 #define GPIO_SDC_CD	GPIO_P49	/* in  */
 #define GPIO_VBUS	GPIO_P153	/* in  */
 
-/* PWC */
-#define GPIO_EXTIO1	GPIO_PWC_P0	/* in  */
-#define GPIO_PWC_LED1	GPIO_PWC_P14	/* out */
-#define GPIO_PWC_LED2	GPIO_PWC_P15	/* out */
-
 /*pixcir pct touchscreeen ic reset*/
 #define GPIO_TOUCHSCREEN_RESET	GPIO_P97
 
 
 /* EXTIO */
-#define GPIO_KEY_OUT0	GPIO_EXT1_P0	/* out */
-#define GPIO_KEY_OUT1	GPIO_EXT1_P1	/* out */
-#define GPIO_KEY_OUT2	GPIO_EXT1_P2	/* out */
-#define GPIO_KEY_OUT3	GPIO_EXT1_P3	/* out */
-#define GPIO_KEY_OUT4	GPIO_EXT1_P4	/* out */
-#define GPIO_SD_WP	GPIO_EXT1_P5	/* in  */
-#define GPIO_SDI1_CD	GPIO_EXT1_P6	/* in  */
-#define GPIO_SDI2_CD	GPIO_EXT1_P7	/* in  */
-#define GPIO_KEY_DATA0	GPIO_EXT1_P8	/* in  */
-#define GPIO_KEY_DATA1	GPIO_EXT1_P9	/* in  */
-#define GPIO_KEY_DATA2	GPIO_EXT1_P10	/* in  */
-#define GPIO_KEY_DATA3	GPIO_EXT1_P11	/* in  */
-#define GPIO_DTV_GIO0	GPIO_EXT1_P12	/* out */
-#define GPIO_DAIT_INT	GPIO_EXT1_P13	/* in  */
-#define GPIO_NTSC_RST	GPIO_EXT1_P16	/* out */
-#define GPIO_LCD_RST	GPIO_EXT1_P17	/* out */
-#define GPIO_AUDIO_RST	GPIO_EXT1_P18	/* out */
-#define GPIO_ETH_RST	GPIO_EXT1_P19	/* out */
-#define GPIO_CAM_RST	GPIO_EXT1_P20	/* out */
-#define GPIO_DTV_GIO1	GPIO_EXT1_P21	/* out */
-#define GPIO_DAIT_RST	GPIO_EXT1_P22	/* out */
-#define GPIO_NAND_WP	GPIO_EXT1_P24	/* out */
-#define GPIO_XD_WP	GPIO_EXT1_P25	/* out */
-#define GPIO_SDI1_WP	GPIO_EXT1_P26	/* in  */
-#define GPIO_SDI2_WP	GPIO_EXT1_P27	/* in  */
+#define GPIO_SD_WP	GPIO_NULL	/* in  */
+#define GPIO_SDI1_CD	GPIO_NULL	/* in  */
+#define GPIO_SDI2_CD	GPIO_NULL	/* in  */
+#define GPIO_KEY_DATA0	GPIO_NULL	/* in  */
+#define GPIO_KEY_DATA1	GPIO_NULL	/* in  */
+#define GPIO_KEY_DATA2	GPIO_NULL	/* in  */
+#define GPIO_KEY_DATA3	GPIO_NULL	/* in  */
+#define GPIO_DTV_GIO0	GPIO_NULL	/* out */
+#define GPIO_DAIT_INT	GPIO_NULL	/* in  */
+#define GPIO_NTSC_RST	GPIO_NULL	/* out */
+#define GPIO_LCD_RST	GPIO_P103	/* out */
+#define GPIO_AUDIO_RST	GPIO_NULL	/* out */
+#define GPIO_ETH_RST	GPIO_NULL	/* out */
+#define GPIO_CAM_RST	GPIO_NULL	/* out */
+#define GPIO_DTV_GIO1	GPIO_NULL	/* out */
+#define GPIO_DAIT_RST	GPIO_NULL	/* out */
+#define GPIO_NAND_WP	GPIO_NULL	/* out */
+#define GPIO_XD_WP	GPIO_NULL	/* out */
+#define GPIO_SDI1_WP	GPIO_NULL	/* in  */
+#define GPIO_SDI2_WP	GPIO_NULL	/* in  */
 
 
 static inline int __gpio_set_direction(unsigned gpio, int is_input)
@@ -426,14 +339,6 @@ static inline int gpio_direction_input(unsigned gpio)
 {
 	if (gpio <= GPIO_GPIO_LAST)
 		return __gpio_set_direction(gpio, 1);
-	else if (gpio <= GPIO_PWC_LAST)
-		return pwc_set_direction(gpio, 1);
-	else if (gpio <= GPIO_EXT1_LAST)
-		return extio_set_direction(gpio, 1);
-#ifdef CONFIG_EMGR_TI_PMIC
-	else if (gpio <= GPIO_PWC_EXT_LAST)
-		return pwc_ext_set_direction(gpio, 1);
-#endif
 	else
 		return -EINVAL;
 }
@@ -446,20 +351,6 @@ static inline int gpio_direction_output(unsigned gpio, int value)
 		ret = __gpio_set_direction(gpio, 0);
 		if (!ret)
 			__gpio_set_value(gpio, value);
-	} else if (gpio <= GPIO_PWC_LAST) {
-		ret = pwc_set_direction(gpio, 0);
-		if (!ret)
-			pwc_set_value(gpio, value);
-	} else if (gpio <= GPIO_EXT1_LAST) {
-		ret = extio_set_direction(gpio, 0);
-		if (!ret)
-			extio_set_value(gpio, value);
-#ifdef CONFIG_EMGR_TI_PMIC
-	} else if (gpio <= GPIO_PWC_EXT_LAST) {
-		ret = pwc_ext_set_direction(gpio, 0);
-		if (!ret)
-			pwc_ext_set_value(gpio, value);
-#endif
 	}
 	return ret;
 }
@@ -468,14 +359,6 @@ static inline int gpio_get_value(unsigned gpio)
 {
 	if (gpio <= GPIO_GPIO_LAST)
 		return __gpio_get_value(gpio);
-	else if (gpio <= GPIO_PWC_LAST)
-		return pwc_get_value(gpio);
-	else if (gpio <= GPIO_EXT1_LAST)
-		return extio_get_value(gpio);
-#ifdef CONFIG_EMGR_TI_PMIC
-	else if (gpio <= GPIO_PWC_EXT_LAST)
-		return pwc_ext_get_value(gpio);
-#endif
 	else
 		return -EINVAL;
 }
@@ -484,14 +367,6 @@ static inline void gpio_set_value(unsigned gpio, int value)
 {
 	if (gpio <= GPIO_GPIO_LAST)
 		__gpio_set_value(gpio, value);
-	else if (gpio <= GPIO_PWC_LAST)
-		pwc_set_value(gpio, value);
-	else if (gpio <= GPIO_EXT1_LAST)
-		extio_set_value(gpio, value);
-#ifdef CONFIG_EMGR_TI_PMIC
-	else if (gpio <= GPIO_PWC_EXT_LAST)
-		pwc_ext_set_value(gpio, value);;
-#endif
 }
 
 static inline int gpio_is_valid(int number)
@@ -501,10 +376,8 @@ static inline int gpio_is_valid(int number)
 
 static inline int gpio_cansleep(unsigned gpio)
 {
-	if (gpio <= GPIO_PWC_LAST)
+	if (gpio <= GPIO_GPIO_LAST)
 		return 0;
-	else if (gpio <= GPIO_EXT1_LAST)
-		return 1;
 	else
 		return 0;
 }
@@ -525,8 +398,6 @@ static inline int gpio_to_irq(unsigned gpio)
 {
 	if (gpio <= GPIO_GPIO_LAST)
 		return gpio + INT_GPIO_BASE;
-	else if (gpio <= GPIO_PWC_LAST)
-		return (gpio - GPIO_PWC_BASE) + INT_PWC_MASK3_BASE;
 	else
 		return -EINVAL;
 }
@@ -535,8 +406,6 @@ static inline int irq_to_gpio(unsigned irq)
 {
 	if ((irq >= INT_GPIO_BASE) && (irq <= INT_GPIO_LAST))
 		return irq - INT_GPIO_BASE;
-	else if ((irq >= INT_PWC_MASK3_BASE) && (irq <= INT_PWC_LAST))
-		return (irq - INT_PWC_MASK3_BASE) + GPIO_PWC_BASE;
 	else
 		return -EINVAL;
 }
