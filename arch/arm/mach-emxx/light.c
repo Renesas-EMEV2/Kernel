@@ -38,7 +38,7 @@ struct emxx_pwm_cmpcnt_t pwm_cmpcnt;
 
 /*******************************/
 /* LCD BackLight */
-static void
+void
 emxx_brightness_set(struct led_classdev *led_cdev, enum led_brightness value)
 {
 #if 0
@@ -59,6 +59,8 @@ emxx_brightness_set(struct led_classdev *led_cdev, enum led_brightness value)
 	emxx_pwm_set_compare_counter(0, &pwm_cmpcnt);
 	emxx_pwm_start(0);
 }
+
+EXPORT_SYMBOL( emxx_brightness_set );
 
 static struct led_classdev emxx_backlight_led = {
 	.name = "lcd-backlight",
@@ -92,8 +94,34 @@ static struct platform_device emxx_leds = {
 		.platform_data	= &emxx_leds_data,
 	},
 };
-
 /*******************************/
+
+static void emxx_light_gpio_configure(void)
+{
+	int value;
+	value = readl(CHG_PINSEL_G096);
+	value &= 0xFFEFFFFF;
+	writel(value, CHG_PINSEL_G096);
+
+	value = readl(CHG_PINSEL_G128);
+	value |= 0x400000;
+	writel(value , CHG_PINSEL_G128);
+
+	value = readl(CHG_PINSEL_G096);
+	value |= 0x100; 
+	writel(value, CHG_PINSEL_G096);
+
+	value = readl(CHG_PULL11);
+	value = (value&0xFFF0FFFF)|0x50000;
+	writel(value, CHG_PULL11);
+
+	value = readl(CHG_PINSEL_G096) ;
+	value |= 0x88;
+	writel(value,CHG_PINSEL_G096);
+
+	gpio_direction_output(150,1);
+}
+
 static int emxx_light_probe(struct platform_device *pdev)
 {
 	struct emxx_pwm_ch_config_t ch_config;
@@ -104,6 +132,8 @@ static int emxx_light_probe(struct platform_device *pdev)
 	ch_config.mode = 0;
 	ch_config.use_cmp = PWM_CMP_EN0_BIT;
 	emxx_pwm_set_channel_config(0, &ch_config);
+
+	emxx_light_gpio_configure();
 
 	pwm_cmpcnt.cmp = EMXX_PWM_COMPARE0;
 	pwm_cmpcnt.delay = 0;
