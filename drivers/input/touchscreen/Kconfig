@@ -615,6 +615,10 @@ config TOUCHSCREEN_DA9052
 
 config TOUCHSCREEN_I2C_PIXCIR
 	bool "PIXCIR based PCT multi-touch screen"
-	depends on I2C
+	depends on ARCH_EMXX && I2C
+
+config TOUCHSCREEN_GOODIX
+	bool "Goodix GT801 multi-touch screen"
+	depends on ARCH_EMXX && I2C
 
 endif
