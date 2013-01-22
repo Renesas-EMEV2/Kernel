@@ -33,13 +33,17 @@
 #define DRIVER_DESC "Pixcir I2C Touchscreen Driver"
 #define DRIVER_LICENSE "GPL"
 
-//#define DEBUG 1
+#define DEBUG 1
 #define	printk(x...) printk("emxx_ts:" x)
 
+#define TOUCHSCREEN_RAW_MINX 0
+#define TOUCHSCREEN_RAW_MAXX 1200
+#define TOUCHSCREEN_RAW_MINY 0
+#define TOUCHSCREEN_RAW_MAXY 600
 #define TOUCHSCREEN_MINX 0
-#define TOUCHSCREEN_MAXX 1200
+#define TOUCHSCREEN_MAXX 800
 #define TOUCHSCREEN_MINY 0
-#define TOUCHSCREEN_MAXY 600
+#define TOUCHSCREEN_MAXY 480
 
 static struct workqueue_struct *pixcir_wq;
 
@@ -108,7 +112,9 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 						  work.work);
 
 	unsigned char touching, oldtouching;
-	int posx1, posy1,posx2, posy2;
+	int rawposx1, rawposy1, rawposx2, rawposy2;
+	int posx1, posy1, posx2, posy2;
+	int scale1, scale2;
 	u_int8_t Rdbuf[10],Wrbuf[1];
 	int ret;
 	int z=50;
@@ -143,48 +149,48 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 
 	touching=Rdbuf[0];
 	oldtouching=Rdbuf[1];
-	posx1 = ((Rdbuf[3] << 8) | Rdbuf[2]);
-	posy1 = ((Rdbuf[5] << 8) | Rdbuf[4]);
-	posx2 = ((Rdbuf[7] << 8) | Rdbuf[6]);
-	posy2 = ((Rdbuf[9] << 8) | Rdbuf[8]);
+	rawposx1 = ((Rdbuf[3] << 8) | Rdbuf[2]);
+	rawposy1 = ((Rdbuf[5] << 8) | Rdbuf[4]);
+	rawposx2 = ((Rdbuf[7] << 8) | Rdbuf[6]);
+	rawposy2 = ((Rdbuf[9] << 8) | Rdbuf[8]);
 
-	posx1 = TOUCHSCREEN_MAXX - posx1;
-	posx2 = TOUCHSCREEN_MAXX - posx2;
+	scale1 = TOUCHSCREEN_MAXX - TOUCHSCREEN_MINX;
+	scale2 = TOUCHSCREEN_RAW_MAXX - TOUCHSCREEN_RAW_MINX;
+	posx1 = TOUCHSCREEN_MINX + ((TOUCHSCREEN_RAW_MAXX - rawposx1) * scale1 / scale2);
+	posx2 = TOUCHSCREEN_MINX + ((TOUCHSCREEN_RAW_MAXX - rawposx2) * scale1 / scale2);
+	scale1 = TOUCHSCREEN_MAXY - TOUCHSCREEN_MINY;
+	scale2 = TOUCHSCREEN_RAW_MAXY - TOUCHSCREEN_RAW_MINY;
+	posy1 = TOUCHSCREEN_MINY + (rawposy1 * scale1 / scale2);
+	posy2 = TOUCHSCREEN_MINY + (rawposy2 * scale1 / scale2);
 
 	#ifdef DEBUG
-		printk("touching:%-3d,oldtouching:%-3d,x1:%-6d,y1:%-6d,x2:%-6d,y2:%-6d\n",touching,oldtouching,posx1,posy1,posx2,posy2);
+		printk("touching:%-3d,oldtouching:%-3d\n",touching,oldtouching);
+		printk("raw: x1:%-6d,y1:%-6d  x2:%-6d,y2:%-6d\n",rawposx1,rawposy1,rawposx2,rawposy2);
+		printk("scaled: x1:%-6d,y1:%-6d  x2:%-6d,y2:%-6d\n",posx1,posy1,posx2,posy2);
 	#endif
 
-	input_report_key(tsdata->input, BTN_TOUCH, (touching!=0?1:0));
-	input_report_key(tsdata->input, BTN_2, (touching==2?1:0));
-
-	if(touching){
-		input_report_abs(tsdata->input, ABS_X, posx1);
-		input_report_abs(tsdata->input, ABS_Y, posy1);
-	}
-
-	if (touching==2) {
-		input_report_abs(tsdata->input, ABS_HAT0X, posx2);
-		input_report_abs(tsdata->input, ABS_HAT0Y, posy2);
-	}
-	if(!(touching)){
+	if(!touching){
 		z=0;
 		w=0;
+	} else {
+		input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, z);
+		input_report_abs(tsdata->input, ABS_MT_WIDTH_MAJOR, w);
+		input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx1);
+		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy1);
+		input_report_key(tsdata->input, BTN_TOUCH, 1);
 	}
-	input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, z);
-	input_report_abs(tsdata->input, ABS_MT_WIDTH_MAJOR, w);
-	input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx1);
-	input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy1);
-	input_mt_sync(tsdata->input);
 	if (touching==2) {
 		input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, z);
 		input_report_abs(tsdata->input, ABS_MT_WIDTH_MAJOR, w);
 		input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx2);
 		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy2);
-		input_mt_sync(tsdata->input);
+		input_report_key(tsdata->input, BTN_TOUCH, 1);
 	}
-	input_sync(tsdata->input);
+	if (touching || (!touching && oldtouching))
+		/* Last touch released - send an empty MT sync */
+		input_mt_sync(tsdata->input);
 
+	input_sync(tsdata->input);
 	out:
 		enable_irq(tsdata->irq);
 }

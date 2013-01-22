@@ -487,6 +487,12 @@ static struct i2c_board_info emev_i2c_devices[] = {
 	  .irq = INT_GPIO_29,
 	},
 #endif
+#if defined(CONFIG_TOUCHSCREEN_GOODIX)
+	{
+	   I2C_BOARD_INFO(I2C_SLAVE_I2C_GOODIX_NAME, I2C_SLAVE_I2C_GOODIX_ADDR),
+	   .irq= INT_GPIO_29,
+ 	},
+#endif
 #ifdef CONFIG_INPUT_TOUCH_BUTTON
 	{
 	  I2C_BOARD_INFO(I2C_SLAVE_I2C_BUTTON_NAME, I2C_SLAVE_I2C_BUTTON_ADDR),
