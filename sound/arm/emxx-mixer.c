@@ -50,7 +50,7 @@
 #include "rt5621.h"
 #endif
 
-//#define XYP_DEBUG_DEVICE 1
+#define XYP_DEBUG_DEVICE 1
 
 /* static initial value */
 #define ID_VALUE		NULL
@@ -659,8 +659,10 @@ static int codec_init(void)
 	/* switch control(enum) */
 	/* capture input path: OFF */
 	codec->enum_info[IDX(MIXER_SW_CAPTURE)].value = 0;
-	//8kHz
-	codec->enum_info[IDX(MIXER_SW_SAMPLING_RATE)].value = 1;
+	/* 8kHz
+	codec->enum_info[IDX(MIXER_SW_SAMPLING_RATE)].value = 1;*/
+	/* 44.1kHz */
+	codec->enum_info[IDX(MIXER_SW_SAMPLING_RATE)].value = 10;
 	/* playback output path : OFF */
 	codec->enum_info[IDX(MIXER_SW_PLAYBACK)].value = 0;
 
@@ -731,8 +733,8 @@ static int codec_power_on(void)
 	rt5621_write_index_reg(EQ_OUTPUT_VOL_CONTROL, EQ_OUTPUT_VOL_ADD_6DB);
 	rt5621_update_eqmode(HFREQ);
 #endif
-	//res = CODEC_WRITE(RT5621_PLL_CTRL, 0x2323);	//44.1KHz
-	res = CODEC_WRITE(RT5621_PLL_CTRL, 0xfc7d);	//22.05KHz
+	res = CODEC_WRITE(RT5621_PLL_CTRL, 0x2323);	/* 44.1KHz */
+	/* res = CODEC_WRITE(RT5621_PLL_CTRL, 0xfc7d);	/* 22.05KHz */
 	if (res != 0) {
 		goto err1;
 	}
@@ -742,8 +744,8 @@ static int codec_power_on(void)
 		goto err1;
 	}
 
-	//res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	//44.1KHz
-	res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x266d);	//22.05KHz
+	res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	/* 44.1KHz */
+	/* res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x266d);	/* 22.05KHz */
 	if (res != 0) {
 		goto err1;
 	}
