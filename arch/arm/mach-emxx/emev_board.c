@@ -155,7 +155,7 @@ static struct platform_device dm9000_device = {
 #ifdef CONFIG_SWITCH_GPIO
 static struct gpio_switch_platform_data headset_switch_data = { 
         .name = "h2w",
-        .gpio = GPIO_P8,
+        .gpio = GPIO_HEADSET_SWITCH,
 };
 
 static struct platform_device headset_switch_device = { 
@@ -330,54 +330,56 @@ static struct platform_device usb_mass_storage_device = {
 #ifdef CONFIG_KEYBOARD_GPIO
 static struct gpio_keys_button gpio_buttons[] = {
 	{
-		.gpio		= GPIO_P143,
+		.gpio		= GPIO_KEY_POWER,
 		.code		= KEY_POWER,
 		.desc		= "power",
 		.active_low	= 1,
 		.wakeup		= 1,
 	},
 	{
-		.gpio		= GPIO_P13,
+		.gpio		= GPIO_KEY_VOLUP,
 		.code		= KEY_VOLUMEUP,
 		.desc		= "vol up",
 		.active_low	= 1,
 		.wakeup		= 0,
 	},
 	{
-		.gpio		= GPIO_P14,
+		.gpio		= GPIO_KEY_VOLDOWN,
 		.code		= KEY_VOLUMEDOWN,
 		.desc		= "vol down",
 		.active_low	= 1,
 		.wakeup		= 0,
-	},
+	}
+/*
 	{
-		.gpio		= GPIO_P15,
+		.gpio		= GPIO_KEY_BACK,
 		.code		= KEY_BACK,
 		.desc		= "home",
 		.active_low	= 1,
 		.wakeup 	= 0,
 	},
 	{
-		.gpio		= GPIO_P16,
+		.gpio		= GPIO_KEY_MENU,
 		.code		= KEY_MENU,
 		.desc		= "menu",
 		.active_low	= 1,
 		.wakeup 	= 0,
 	},
 	{
-		.gpio		= GPIO_P17,
+		.gpio		= GPIO_KEY_SEARCH,
 		.code		= KEY_SEARCH,
 		.desc		= "back",
 		.active_low	= 1,
 		.wakeup 	= 0,
 	},
 	{
-		.gpio		= GPIO_P26,
+		.gpio		= GPIO_KEY_HOME,
 		.code		= KEY_HOME,
 		.desc		= "search",
 		.active_low	= 1,
 		.wakeup		= 0,
 	}
+*/
 };
 
 static struct gpio_keys_platform_data gpio_key_info = {

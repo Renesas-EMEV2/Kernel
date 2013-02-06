@@ -34,16 +34,12 @@
 #define DRIVER_LICENSE "GPL"
 
 #define DEBUG 1
-#define	printk(x...) printk("emxx_ts:" x)
+#define	printk(x...) printk("pixcir_ts: " x)
 
-#define TOUCHSCREEN_RAW_MINX 0
-#define TOUCHSCREEN_RAW_MAXX 1200
-#define TOUCHSCREEN_RAW_MINY 0
-#define TOUCHSCREEN_RAW_MAXY 600
 #define TOUCHSCREEN_MINX 0
-#define TOUCHSCREEN_MAXX 800
+#define TOUCHSCREEN_MAXX 1200
 #define TOUCHSCREEN_MINY 0
-#define TOUCHSCREEN_MAXY 480
+#define TOUCHSCREEN_MAXY 600
 
 static struct workqueue_struct *pixcir_wq;
 
@@ -64,11 +60,11 @@ void touchscreen_calibrate(void);
 static void pixcir_do_reset(int oning)
 {
 	if(oning) {
-		gpio_direction_output(GPIO_TOUCHSCREEN_RESET, 0);
+		gpio_direction_output(GPIO_PIXCIR_RESET, 0);
 	} else {
 		writel((readl(CHG_PULL10) & 0xff0fffff), CHG_PULL10);
 		writel((readl(CHG_PINSEL_G096) | 0x2), CHG_PINSEL_G096);
-		gpio_direction_input(GPIO_TOUCHSCREEN_RESET);
+		gpio_direction_input(GPIO_PIXCIR_RESET);
 	}
 }
 
@@ -86,7 +82,7 @@ static inline void emxx_ts_connect(void)
 #endif
 	pixcir_reset(300);
 
-	gpio_direction_input(GPIO_P29);
+	gpio_direction_input(GPIO_PIXCIR_IRQ);
 	//set_irq_type(INT_GPIO_29, IRQ_TYPE_EDGE_FALLING);
 
 #ifdef DEBUG
@@ -126,22 +122,17 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 	Wrbuf[0] = 0;
 
 	ret = i2c_master_send(tsdata->client, Wrbuf, 1);
-
 	#ifdef DEBUG
 		printk("master send ret:%d\n",ret);
 	#endif
-
 	if(ret!=1){
 		dev_err(&tsdata->client->dev, "Unable to write to i2c touchscreen!\n");
 		goto out;
 	}
-
 	ret = i2c_master_recv(tsdata->client,Rdbuf,sizeof(Rdbuf));
-
 	#ifdef DEBUG
 		printk("master recv ret:%d\n",ret);
 	#endif
-
 	if(ret!=sizeof(Rdbuf)){
 		dev_err(&tsdata->client->dev, "Unable to read i2c page!\n");
 		goto out;
@@ -149,50 +140,36 @@ static void pixcir_ts_poscheck(struct work_struct *work)
 
 	touching=Rdbuf[0];
 	oldtouching=Rdbuf[1];
-	rawposx1 = ((Rdbuf[3] << 8) | Rdbuf[2]);
-	rawposy1 = ((Rdbuf[5] << 8) | Rdbuf[4]);
-	rawposx2 = ((Rdbuf[7] << 8) | Rdbuf[6]);
-	rawposy2 = ((Rdbuf[9] << 8) | Rdbuf[8]);
-
-	scale1 = TOUCHSCREEN_MAXX - TOUCHSCREEN_MINX;
-	scale2 = TOUCHSCREEN_RAW_MAXX - TOUCHSCREEN_RAW_MINX;
-	posx1 = TOUCHSCREEN_MINX + ((TOUCHSCREEN_RAW_MAXX - rawposx1) * scale1 / scale2);
-	posx2 = TOUCHSCREEN_MINX + ((TOUCHSCREEN_RAW_MAXX - rawposx2) * scale1 / scale2);
-	scale1 = TOUCHSCREEN_MAXY - TOUCHSCREEN_MINY;
-	scale2 = TOUCHSCREEN_RAW_MAXY - TOUCHSCREEN_RAW_MINY;
-	posy1 = TOUCHSCREEN_MINY + (rawposy1 * scale1 / scale2);
-	posy2 = TOUCHSCREEN_MINY + (rawposy2 * scale1 / scale2);
+	posx1 = TOUCHSCREEN_MAXX - ((Rdbuf[3] << 8) | Rdbuf[2]);
+	posy1 = ((Rdbuf[5] << 8) | Rdbuf[4]);
+	posx2 = TOUCHSCREEN_MAXX - ((Rdbuf[7] << 8) | Rdbuf[6]);
+	posy2 = ((Rdbuf[9] << 8) | Rdbuf[8]);
 
 	#ifdef DEBUG
-		printk("touching:%-3d,oldtouching:%-3d\n",touching,oldtouching);
-		printk("raw: x1:%-6d,y1:%-6d  x2:%-6d,y2:%-6d\n",rawposx1,rawposy1,rawposx2,rawposy2);
+		printk("touch:%-3d, oldtouch:%-3d\n",touching,oldtouching);
 		printk("scaled: x1:%-6d,y1:%-6d  x2:%-6d,y2:%-6d\n",posx1,posy1,posx2,posy2);
 	#endif
-
-	if(!touching){
-		z=0;
-		w=0;
-	} else {
-		input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, z);
-		input_report_abs(tsdata->input, ABS_MT_WIDTH_MAJOR, w);
+	if (touching) {
+		input_report_key(tsdata->input, BTN_TOUCH, 1);
 		input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx1);
 		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy1);
-		input_report_key(tsdata->input, BTN_TOUCH, 1);
-	}
-	if (touching==2) {
-		input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, z);
-		input_report_abs(tsdata->input, ABS_MT_WIDTH_MAJOR, w);
-		input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx2);
-		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy2);
-		input_report_key(tsdata->input, BTN_TOUCH, 1);
-	}
-	if (touching || (!touching && oldtouching))
-		/* Last touch released - send an empty MT sync */
 		input_mt_sync(tsdata->input);
-
+		if (touching==2) {
+  			input_report_key(tsdata->input, BTN_TOUCH, 1);
+			input_report_abs(tsdata->input, ABS_MT_POSITION_X, posx2);
+			input_report_abs(tsdata->input, ABS_MT_POSITION_Y, posy2);
+			input_mt_sync(tsdata->input);
+		}
+	} else {
+		if (oldtouching) {
+			/* Send an empty MT sync on last touch release */
+			input_mt_sync(tsdata->input);
+		}
+	}
 	input_sync(tsdata->input);
-	out:
-		enable_irq(tsdata->irq);
+
+out:
+	enable_irq(tsdata->irq);
 }
 
 static irqreturn_t pixcir_ts_isr(int irq,void *dev_id)
@@ -248,15 +225,10 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 	set_bit(EV_KEY, input->evbit);
 	set_bit(EV_ABS, input->evbit);
 	set_bit(BTN_TOUCH, input->keybit);
-	set_bit(BTN_2, input->keybit);
 	input_set_abs_params(input, ABS_X, TOUCHSCREEN_MINX, TOUCHSCREEN_MAXX, 0, 0);
 	input_set_abs_params(input, ABS_Y, TOUCHSCREEN_MINY, TOUCHSCREEN_MAXY, 0, 0);
-	input_set_abs_params(input, ABS_HAT0X, TOUCHSCREEN_MINX, TOUCHSCREEN_MAXX, 0, 0);
-	input_set_abs_params(input, ABS_HAT0Y, TOUCHSCREEN_MINY, TOUCHSCREEN_MAXY, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_X, TOUCHSCREEN_MINX, TOUCHSCREEN_MAXX, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, TOUCHSCREEN_MINY, TOUCHSCREEN_MAXY, 0, 0);
-	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
-	input_set_abs_params(input, ABS_MT_WIDTH_MAJOR, 0, 25, 0, 0);
 
 	input->name = client->name;
 	input->id.bustype = BUS_I2C;
@@ -293,7 +265,7 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 #ifdef DEBUG
 	printk("irq number is %d\n", tsdata->irq);
 #endif
-	if(request_irq(tsdata->irq,pixcir_ts_isr,IRQF_TRIGGER_FALLING,client->name,tsdata)){
+	if(request_irq(tsdata->irq, pixcir_ts_isr, IRQF_TRIGGER_FALLING, client->name,tsdata)){
 		dev_err(&client->dev, "Unable to request touchscreen IRQ.\n");
 		input_unregister_device(input);
 		input=NULL;
@@ -302,13 +274,14 @@ static int pixcir_i2c_ts_probe(struct i2c_client *client,
 	device_init_wakeup(&client->dev, 0);
 
 	dev_err(&tsdata->client->dev,"insmod successfully!\n");
-#if 0
-	//hengai 2011-03-29 Press VolumeUp+Power
-	if( (gpio_get_value(GPIO_P13)==0) && (gpio_get_value(GPIO_P13)==0) ) {
-		printk("touchpanel calibrate ....\n");
+
+        /* Pressing VolumeUp+Power on bootup -> calibrate */
+	if( (gpio_get_value(GPIO_KEY_POWER)==0) && (gpio_get_value(GPIO_KEY_VOLUP)==0) ) {
+		printk("touchpanel calibrating ...\n");
 		touchscreen_calibrate();
+		printk("touchpanel calibration done\n");
 	}
-#endif
+
 	return 0;
 }
 
@@ -326,6 +299,9 @@ static int pixcir_i2c_ts_remove(struct i2c_client *client)
 
 static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
+#ifdef DEBUG
+	printk("suspend");
+#endif
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
 	if (device_may_wakeup(&client->dev))
 		enable_irq_wake(tsdata->irq);
@@ -335,6 +311,9 @@ static int pixcir_i2c_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int pixcir_i2c_ts_resume(struct i2c_client *client)
 {
+#ifdef DEBUG
+	printk("resume");
+#endif
 	struct pixcir_i2c_ts_data *tsdata = dev_get_drvdata(&client->dev);
 
 	queue_work(tsdata->reset_wq, &tsdata->reset_work);

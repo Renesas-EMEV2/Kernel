@@ -253,16 +253,6 @@
 #define GPIO_SDC_CD	GPIO_P49	/* in  */
 #define GPIO_VBUS	GPIO_P153	/* in  */
 
-/*pixcir pct touchscreeen ic reset*/
-#define GPIO_TOUCHSCREEN_RESET	GPIO_P97
-
-// WIFI & BlueTooth GPIO
-#define BCM_BT_RST			GPIO_P114
-#define BCM_WLAN_BT_EN	GPIO_P115
-#define BCM_WLAN_PDN		GPIO_P116
-#define BCM_WLAN_RST		GPIO_P117
-#define WIFI_WAKE			GPIO_P106
-
 /* EXTIO */
 #define GPIO_SD_WP	GPIO_NULL	/* in  */
 #define GPIO_SDI1_CD	GPIO_NULL	/* in  */
@@ -285,6 +275,29 @@
 #define GPIO_SDI1_WP	GPIO_NULL	/* in  */
 #define GPIO_SDI2_WP	GPIO_NULL	/* in  */
 
+/*** Livall tabelt board ***/
+/* PixCir touchscreeen */
+#define GPIO_PIXCIR_RESET	GPIO_P97
+#define GPIO_PIXCIR_IRQ         GPIO_P29
+
+/* WIFI & BlueTooth */
+#define BCM_BT_RST              GPIO_P114
+#define BCM_WLAN_BT_EN          GPIO_P115
+#define BCM_WLAN_PDN		GPIO_P116
+#define BCM_WLAN_RST		GPIO_P117
+#define WIFI_WAKE               GPIO_P106
+
+/* Headset switch */
+#define GPIO_HEADSET_SWITCH     GPIO_P8
+
+/* Hard keys */
+#define GPIO_KEY_POWER       GPIO_P143
+#define GPIO_KEY_VOLUP       GPIO_P13
+#define GPIO_KEY_VOLDOWN     GPIO_P14
+#define GPIO_KEY_BACK        GPIO_P15
+#define GPIO_KEY_MENU        GPIO_P16
+#define GPIO_KEY_SEARCH      GPIO_P17
+#define GPIO_KEY_HOME        GPIO_P26
 
 static inline int __gpio_set_direction(unsigned gpio, int is_input)
 {
