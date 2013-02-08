@@ -1,5 +1,5 @@
 /*
-   File Name		: sound/arm/emxx-mixer.h
+ *  File Name		: sound/arm/emxx-mixer.h
  *  Function		: ALC5621 CODEC
  *  Release Version 	: Ver 1.00
  *  Release Date	: 2011/09/22
@@ -22,7 +22,6 @@
  *  If not, write to the Free Software Foundation, Inc., 59 Temple Place -
  *  Suite 330, Boston,
  *  MA 02111-1307, USA.
- *
  */
 
 #include <linux/version.h>
@@ -50,7 +49,7 @@
 #include "rt5621.h"
 #endif
 
-#define XYP_DEBUG_DEVICE 1
+/* #define XYP_DEBUG_DEVICE */
 
 /* static initial value */
 #define ID_VALUE		NULL
@@ -64,29 +63,29 @@
 #ifdef AUDIO_MAKING_DEBUG
 #define FNC_ENTRY	\
 	if (debug == 1 || debug >= 9) {	\
-		printk(KERN_INFO "entry:%s\n", __FUNCTION__); \
+		printk(KERN_INFO "emxx_mixer: entry:%s\n", __FUNCTION__); \
 	}
 #define FNC_EXIT	\
 	if (debug == 1 || debug >= 9) {	\
-		printk(KERN_INFO "exit:%s:%d\n", __FUNCTION__ , __LINE__); \
+		printk(KERN_INFO "emxx_mixer: exit:%s:%d\n", __FUNCTION__ , __LINE__); \
 	}
 #define d0b(fmt, args...)	\
-	printk(KERN_INFO "%s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args);
+	printk(KERN_INFO "emxx_mixer: %s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args);
 #define d1b(fmt, args...)	\
 	if (debug == 1 || debug >= 9) {	\
-		printk(KERN_INFO "%s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
+		printk(KERN_INFO "emxx_mixer: %s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
 	}
 #define d7b(fmt, args...)	\
 	if (debug == 7 || debug >= 9) {	\
-		printk(KERN_INFO "%s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
+		printk(KERN_INFO "emxx_mixer: %s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
 	}
 #define d8b(fmt, args...)	\
 	if (debug == 8 || debug >= 9) {	\
-		printk(KERN_INFO "%s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
+		printk(KERN_INFO "emxx_mixer: %s:%d: " fmt , __FUNCTION__ , __LINE__ , ## args); \
 	}
 #define d9b(fmt, args...)	\
 	if (debug == 9 || debug >= 9) {	\
-		printk(KERN_INFO fmt , ## args); \
+		printk(KERN_INFO "emxx_mixer: " fmt , ## args); \
 	}
 #else
 #define FNC_ENTRY
@@ -320,6 +319,7 @@ static struct _coeff_div coeff_div[] = {
 static int get_coeff(int rate)
 {
 	int i;
+	FNC_ENTRY
 
 	for (i = 0; i < ARRAY_SIZE(coeff_div); i++) {
 		if (coeff_div[i].rate == rate)
@@ -336,21 +336,22 @@ static int i2c_codec_read(unsigned int reg)
 {
 	int res = 0, value;
 	unsigned char buf[2] = {0};
+	FNC_ENTRY
 
 	if (i2c_codec_client == NULL) {
-		printk(KERN_ERR "i2c codec not available!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec not available!\n");
 		return -EIO;
 	}
 
 	if (RT5621_MAX_REG  < reg) {
-		printk(KERN_ERR "i2c codec read check failed!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec read check failed!\n");
 		return -EINVAL;
 	}
 
 	buf[0] = reg;
 	res = i2c_master_send(i2c_codec_client, buf, 1);
 	if (res <= 0) {
-		printk(KERN_ERR "i2c codec send failed!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec send failed!\n");
 		return -EIO;
 	}
 
@@ -359,7 +360,7 @@ static int i2c_codec_read(unsigned int reg)
 		value = (buf[0]<<8) | buf[1];
 		return value;
 	} else {
-		printk(KERN_ERR "i2c codec recv failed!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec recv failed!\n");
 		return -EIO;
 	}
 }
@@ -368,14 +369,15 @@ static int i2c_codec_write(unsigned int reg, unsigned int data)
 {
 	int res = 0;
 	unsigned char buf[3];
+	FNC_ENTRY
 
 	if (i2c_codec_client == NULL) {
-		printk(KERN_ERR "i2c codec not available!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec not available!\n");
 		return -EIO;
 	}
 
 	if (RT5621_MAX_REG < reg) {
-		printk(KERN_ERR "i2c codec write check failed!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec write check failed!\n");
 		return -EINVAL;
 	}
 
@@ -387,7 +389,7 @@ static int i2c_codec_write(unsigned int reg, unsigned int data)
 	if (res > 0) {
 		res = 0;
 	} else {
-		printk(KERN_ERR "i2c codec write failed!res=%d\n", res);
+		printk(KERN_ERR "emxx-mixer: i2c codec write failed!res=%d\n", res);
 	}
 
 	return res;
@@ -397,6 +399,7 @@ static int i2c_codec_write_mask(unsigned int reg, unsigned int data, unsigned in
 {
 	int ret=0;
 	unsigned  int wdata;
+	FNC_ENTRY
 
 	if(!mask)
 		return 0; 
@@ -488,14 +491,16 @@ static void rt5621_dumpRegs(void)
 {
 	int i;
 
-	printk("ALC5621 registers\n");
+	printk("emxx-mixer: ALC5621 register dump\n");
 	for (i = 0; i <= 0x7E; i += 2)
-		printk("reg[0x%02x] = 0x%04x\n", i, CODEC_READ(i));
+		printk(" reg[0x%02x] = 0x%04x\n", i, CODEC_READ(i));
 }
 #endif
 
 void hp_depop_mode2(void)
 {
+	FNC_ENTRY
+
 	CODEC_WRITE_M(RT5621_PWR_MANAG_ADD3, 0x8000, 0x8000);
 	CODEC_WRITE_M(RT5621_HP_OUT_VOL, 0x8080, 0x8080);
 	CODEC_WRITE_M(RT5621_PWR_MANAG_ADD1, 0x0100, 0x0100);
@@ -521,6 +526,7 @@ static int vol = 30;
 static ssize_t incall_vol_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
 {
 	int direction;
+	FNC_ENTRY
 
         if (sscanf(buf, "%d", &direction) == 1) {
 		if (direction == 1) {
@@ -531,7 +537,7 @@ static ssize_t incall_vol_store(struct device *dev, struct device_attribute *att
 				CODEC_WRITE_M(RT5621_SPK_OUT_VOL, VOL_L_GAIN(vol), VOL_L_GAIN_MASK);
 				CODEC_WRITE_M(RT5621_SPK_OUT_VOL, VOL_R_GAIN(vol), VOL_R_GAIN_MASK);
 #ifdef XYP_DEBUG_DEVICE
-				printk("==== vol+ ,current volume: +%d dB\n", vol*3/2);
+				printk("emxx-mixer: vol+ , current volume: +%d dB\n", vol*3/2);
 #endif
 			}
 
@@ -543,13 +549,13 @@ static ssize_t incall_vol_store(struct device *dev, struct device_attribute *att
 				CODEC_WRITE_M(RT5621_HP_OUT_VOL, VOL_R_GAIN(vol), VOL_R_GAIN_MASK);
 				CODEC_WRITE_M(RT5621_SPK_OUT_VOL, VOL_R_GAIN(vol), VOL_R_GAIN_MASK);
 #ifdef XYP_DEBUG_DEVICE
-				printk("==== vol- , current volume: +%d dB\n", vol*3/2);
+				printk("emxx-mixer: vol- , current volume: +%d dB\n", vol*3/2);
 #endif
 
 			}
 
 		} else {
-			printk("invalid command!\n");
+			printk("emxx-mixer: invalid command!\n");
 		}
 	}
 
@@ -566,15 +572,17 @@ static struct device *codec_dev;
 
 static int setup_codec_dev(void)
 {
+	FNC_ENTRY
+
 	codec_class = class_create(THIS_MODULE, "codec_class");
 	if (codec_class == NULL) {
-		printk("class_create() failed\n");
+		printk("emxx-mixer: class_create() failed\n");
 		return -1;
 	}
 
 	codec_dev = device_create(codec_class, NULL, MKDEV(0, 1), NULL, "codec_dev");	
 	if (codec_dev == NULL) {
-		printk("device_create() failed\n");
+		printk("emxx-mixer: device_create() failed\n");
 		return -2;
 	}
 
@@ -583,6 +591,8 @@ static int setup_codec_dev(void)
 
 static void destory_codec_dev(void)
 {
+	FNC_ENTRY
+
 	device_remove_file(codec_dev, &dev_attr_incall_vol);
 	device_destroy(codec_class, MKDEV(0, 1));
 	class_destroy(codec_class);
@@ -591,8 +601,9 @@ static void destory_codec_dev(void)
 static int codec_i2c_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
-printk("===========%s %d:", __func__, __LINE__);
 	i2c_codec_client = client;
+	FNC_ENTRY
+
 	setup_codec_dev();
 
 	return 0;
@@ -601,6 +612,8 @@ printk("===========%s %d:", __func__, __LINE__);
 static int codec_i2c_remove(struct i2c_client *client)
 {
 	i2c_codec_client = NULL;
+	FNC_ENTRY
+
 	destory_codec_dev();
 
 	return 0;
@@ -623,20 +636,21 @@ static struct i2c_driver i2c_codec_driver = {
 static int i2c_codec_init(void)
 {
 	int res = 0;
+	FNC_ENTRY
 
 	res = i2c_add_driver(&i2c_codec_driver);
 	if (res == 0) {
 		if (i2c_codec_client == NULL) {
 			i2c_del_driver(&i2c_codec_driver);
-			printk(KERN_ERR "codec_i2c_found_proc() not called!\n");
+			printk(KERN_ERR "emxx-mixer: codec_i2c_found_proc() not called!\n");
 			return -EIO;
 		}
 		if (res != 0) {
 			i2c_del_driver(&i2c_codec_driver);
-			printk(KERN_ERR "send or recv failed!\n");
+			printk(KERN_ERR "emxx-mixer: send or recv failed!\n");
 		}
 	} else {
-		printk(KERN_ERR "i2c codec inserted failed!\n");
+		printk(KERN_ERR "emxx-mixer: i2c codec inserted failed!\n");
 	}
 
 	return res;
@@ -649,6 +663,7 @@ static int codec_init(void)
 	int i, j;
 	FNC_ENTRY
 
+	printk("emxx_mixer: codec_init: vol controls=%d", MIXER_INT_NUM);
 	/* volume(integer) */
 	for (i = 0; i < MIXER_INT_NUM; i++) {
 		for (j = 0; j < (codec->vol_info[IDX(i)].count); j++) {
@@ -667,7 +682,7 @@ static int codec_init(void)
 	codec->enum_info[IDX(MIXER_SW_PLAYBACK)].value = 0;
 
 	/* switch control(boolean) */
-	/* "OFF" */
+	/* default to "OFF" */
 	codec->bl_info[IDX(MIXER_SW_CODEC_POWER_BL)].value = 0;
 
 	FNC_EXIT return 0;
@@ -689,6 +704,7 @@ static int codec_power_on(void)
 #ifdef REALTEK_CODEC
 	int i = 0;
 #endif
+	FNC_ENTRY
 
 	mutex_lock(&codec->power_mutex);
 	if (codec->power_on) {
@@ -708,7 +724,7 @@ static int codec_power_on(void)
 
 	res = i2c_codec_init();
 	if (res != 0) {
-		printk( "codec init error\n");
+		printk( "emxx-mixer: codec init error\n");
 		goto err1;
 	}
 
@@ -734,7 +750,7 @@ static int codec_power_on(void)
 	rt5621_update_eqmode(HFREQ);
 #endif
 	res = CODEC_WRITE(RT5621_PLL_CTRL, 0x2323);	/* 44.1KHz */
-	/* res = CODEC_WRITE(RT5621_PLL_CTRL, 0xfc7d);	/* 22.05KHz */
+	/* res = CODEC_WRITE(RT5621_PLL_CTRL, 0xfc7d);	 22.05KHz */
 	if (res != 0) {
 		goto err1;
 	}
@@ -745,7 +761,7 @@ static int codec_power_on(void)
 	}
 
 	res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	/* 44.1KHz */
-	/* res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x266d);	/* 22.05KHz */
+	/* res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x266d);	 22.05KHz */
 	if (res != 0) {
 		goto err1;
 	}
@@ -773,10 +789,10 @@ static int codec_power_on(void)
 	codec->power_on++;
 	mutex_unlock(&codec->power_mutex);
 
-	printk("codec_power_on\n");
+	printk("emxx-mixer: codec_power_on\n");
 	return res;
 err1:
-	printk( "audio init error %d \n", res);
+	printk( "emxx-mixer: audio init error %d \n", res);
 	mutex_unlock(&codec->power_mutex);
 
 	return res;
@@ -790,6 +806,7 @@ static int codec_power_off(void)
 {
 	struct emxx_codec_mixer *codec = &codec_mixer;
 	int res = 0;
+	FNC_ENTRY
 
 	mutex_lock(&codec->power_mutex);
 	if (codec->power_on == 0) {
@@ -830,6 +847,7 @@ EXPORT_SYMBOL(codec_power_off);	//added by xyp @ 2011-12-20, this function will 
 static int rt5621_ChangeCodecPowerStatus(int power_state)
 {
 	unsigned short int PowerDownState=0;
+	FNC_ENTRY
 
 	switch(power_state)
 	{
@@ -923,6 +941,8 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 static inline int emxx_codec_volume(int addr, struct emxx_codec_mixer *codec)
 {
 	int res = 0;
+	FNC_ENTRY
+
 	if (codec->vol_info[IDX(addr)].value[0] > 0x1f)
 		codec->vol_info[IDX(addr)].value[0] = 0x1f;
 
@@ -1016,6 +1036,7 @@ static inline int emxx_codec_volume(int addr, struct emxx_codec_mixer *codec)
 static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 {
 	int RetVal = 0;	
+	FNC_ENTRY
 
 	if (Mute) {
 		switch (Path) {
@@ -1170,6 +1191,7 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 
 static int emxx_codec_capture_sw(int *val)
 {
+	FNC_ENTRY
 #ifdef REALTEK_CODEC
 	rt5621_AudioMute(RT_WAVIN_ALL_OFF, true);//mute all in
 #endif
@@ -1227,6 +1249,7 @@ static int emxx_codec_capture_sw(int *val)
 
 static int emxx_codec_playback_sw(int *val)
 {
+	FNC_ENTRY
 #ifdef REALTEK_CODEC
 	rt5621_AudioMute(RT_WAVOUT_ALL_OFF, true); //mute all out
 #endif
@@ -1425,10 +1448,12 @@ static int emxx_codec_integer_get(struct snd_kcontrol *kcontrol,
 	int i;
 	FNC_ENTRY
 
+	d8b("cnt=%d\n", cnt);
 	spin_lock_irqsave(&codec->mixer_lock, flags);
 	for (i = 0; i < cnt; i++) {
 		ucontrol->value.integer.value[i]  =
 			codec->vol_info[IDX(addr)].value[i];
+		d8b("value=%d\n", codec->vol_info[IDX(addr)].value[i]);
 	}
 	spin_unlock_irqrestore(&codec->mixer_lock, flags);
 
@@ -1450,13 +1475,15 @@ static int emxx_codec_integer_put(struct snd_kcontrol *kcontrol,
 	int res = 0;
 	FNC_ENTRY
 
-	if (codec->power_on == 0)
+	if (codec->power_on == 0) {
 		FNC_EXIT return -EINVAL;
+	}
 
+	d8b("cnt=%d\n", cnt);
 	for (i = 0; i < cnt; i++) {
 
 #ifdef XYP_DEBUG_DEVICE
-		printk("==== volume[%d] : +%ld dB ====\n", i, (ucontrol->value.integer.value[i])*3/2);
+		printk("emxx_mixer: volume[%d] : +%ld dB\n", i, (ucontrol->value.integer.value[i])*3/2);
 #else
 		d8b("value.integer.value[%d]=%ld\n",
 				i, ucontrol->value.integer.value[i]);
@@ -1478,8 +1505,9 @@ static int emxx_codec_integer_put(struct snd_kcontrol *kcontrol,
 
 	if (change) {
 		res = emxx_codec_mixer_write(addr, codec);
-		if (res < 0)
+		if (res < 0) {
 			FNC_EXIT return res;
+		}
 
 	}
 
@@ -1536,14 +1564,16 @@ static int emxx_codec_enum_put(struct snd_kcontrol *kcontrol,
 	int res = 0;
 	FNC_ENTRY
 
-	if (codec->power_on == 0)
+	if (codec->power_on == 0) {
 		FNC_EXIT return -EINVAL;
+	}
 
 #ifdef XYP_DEBUG_DEVICE
-	printk("\n==== %s ====\n", codec->enum_info[IDX(addr)].texts[ucontrol->value.enumerated.item[0]]);
+	printk("emxx_mixer: %s \n", codec->enum_info[IDX(addr)].texts[ucontrol->value.enumerated.item[0]]);
 #else
-	d8b("value.enumerated.item[0]=%d\n",
-			ucontrol->value.enumerated.item[0]);
+	d8b("value.enumerated.item[0]=%d '%s'\n",
+			ucontrol->value.enumerated.item[0],
+			codec->enum_info[IDX(addr)].texts[ucontrol->value.enumerated.item[0]]);
 #endif
 	if (ucontrol->value.enumerated.item[0] > (items - 1))
 		return -EINVAL;
@@ -1557,8 +1587,9 @@ static int emxx_codec_enum_put(struct snd_kcontrol *kcontrol,
 
 	if (change) {
 		res = emxx_codec_mixer_write(addr, codec);
-		if (res < 0)
+		if (res < 0) {
 			FNC_EXIT return res;
+		}
 
 	}
 
@@ -1608,14 +1639,15 @@ static int emxx_codec_boolean_put(struct snd_kcontrol *kcontrol,
 	int res = 0;
 	FNC_ENTRY
 
-	if ((codec->power_on == 0) && (addr != MIXER_SW_CODEC_POWER_BL))
+	if ((codec->power_on == 0) && (addr != MIXER_SW_CODEC_POWER_BL)) {
 		FNC_EXIT return -EINVAL;
+	}
 
 #ifdef XYP_DEBUG_DEVICE
 	if (ucontrol->value.integer.value[0]) {
-		printk("==== codec power on\n");
+		printk("emxx_mixer: codec power on\n");
 	} else {
-		printk("==== codec power off\n");
+		printk("emxx_mixer: codec power off\n");
 	}
 #else
 	d8b("value.integer.value[0]=%ld\n", ucontrol->value.integer.value[0]);
@@ -1629,8 +1661,9 @@ static int emxx_codec_boolean_put(struct snd_kcontrol *kcontrol,
 
 	if (change) {
 		res = emxx_codec_mixer_write(addr, codec);
-		if (res < 0)
+		if (res < 0) {
 			FNC_EXIT return res;
+		}
 	}
 
 	FNC_EXIT return change;
@@ -1668,8 +1701,9 @@ static int __init emxx_codec_mixer_new(struct snd_card *card)
 	for (idx = 0; idx < ARRAY_SIZE(emxx_codec_controls); idx++) {
 		err = snd_ctl_add(card,
 				snd_ctl_new1(&emxx_codec_controls[idx], &codec_mixer));
-		if (err < 0)
+		if (err < 0) {
 			FNC_EXIT return err;
+		}
 
 	}
 
@@ -1703,7 +1737,7 @@ static int emxx_codec_startup(struct snd_pcm_substream *substream)
 
 	if (codec->power_on == 0) {
 		if(codec_power_on() < 0) {
-			printk( "re-poweron error\n");
+			printk( "emxx_mixer: re-poweron error\n");
 			FNC_EXIT return -EINVAL;
 		}
 	}
@@ -1723,13 +1757,15 @@ static int emxx_codec_startup(struct snd_pcm_substream *substream)
 
 	err = snd_pcm_hw_constraint_integer(runtime,
 			SNDRV_PCM_HW_PARAM_PERIODS);
-	if (err < 0)
+	if (err < 0) {
 		FNC_EXIT return err;
+	}
 
 	err = snd_pcm_hw_constraint_list(runtime, 0, SNDRV_PCM_HW_PARAM_RATE,
 			&hw_constraints_rates);
-	if (err < 0)
+	if (err < 0) {
 		FNC_EXIT return err;
+	}
 
 	FNC_EXIT return 0;
 }
@@ -1825,11 +1861,13 @@ static int emxx_codec_probe(struct platform_device *devptr)
 
 	ret = snd_card_create(SNDRV_DEFAULT_IDX1, id, THIS_MODULE, 0, &card);
 	if (ret < 0) {
-		printk("%s: err\n", __func__);
+		printk("emxx_mixer: %s error\n", __func__);
 		FNC_EXIT return -ENOMEM;
 	}
 
 	snd_card_set_dev(card, &devptr->dev);
+	
+	printk("emxx_mixer: controls_count %d, user_ctl_count %d\n", card->controls_count, card->user_ctl_count);
 
 	emxx_codec_card = card;
 
@@ -1857,10 +1895,10 @@ static int emxx_codec_probe(struct platform_device *devptr)
 	ret = snd_card_register(card);
 	if (ret == 0) {
 #ifdef AUDIO_MAKING_DEBUG
-		printk(KERN_INFO "Starting sound codec. with debug : M%d\n",
+		printk(KERN_INFO "emxx_mixer: Starting sound codec. with debug : M%d\n",
 				debug);
 #else
-		printk(KERN_INFO "Starting sound codec.\n");
+		printk(KERN_INFO "emxx_mixer: Starting sound codec.\n");
 #endif
 		platform_set_drvdata(devptr, card);
 		FNC_EXIT return 0;

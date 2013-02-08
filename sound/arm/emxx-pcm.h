@@ -20,7 +20,7 @@
  * Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335, USA.
  */
 
-/* #define AUDIO_MAKING_DEBUG 1 */
+/* #define AUDIO_MAKING_DEBUG 8 */
 
 #include <linux/platform_device.h>
 
