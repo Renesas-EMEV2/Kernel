@@ -50,6 +50,7 @@
 #include <mach/hardware.h>
 #include <mach/smu.h>
 #include <mach/emxx_mem.h>
+#include <mach/emev_board.h>
 #ifdef CONFIG_EMXX_PWC
 #include <mach/pwc.h>
 #endif
@@ -261,6 +262,7 @@ static struct emev_rfkill_platform_data emev_rfkill = {
        .nshutdown_gpio = BCM_BT_RST,
 };
 
+
 static struct platform_device emev_bt_rfkill_platform_device = {
        .name   = "emev-rfkill",
        .id     = -1,
@@ -424,6 +426,8 @@ static struct platform_device *devs[] __initdata = {
 #endif
 	&usb_mass_storage_device,
 	&android_usb_device,
+	&emev_bt_rfkill_platform_device,
+	&emev_wifi_rfkill_platform_device,
 #endif
 #ifdef CONFIG_KEYBOARD_GPIO
 	&keys_gpio,
@@ -432,8 +436,7 @@ static struct platform_device *devs[] __initdata = {
 #if defined(CONFIG_AXP192_BATTERY)
 	&axp192_battery_decive,
 #endif
-	&emev_bt_rfkill_platform_device,
-	&emev_wifi_rfkill_platform_device,
+
 #if defined(CONFIG_EMXX_SENSORS)
 	&emxx_sensors_plat,
 #endif

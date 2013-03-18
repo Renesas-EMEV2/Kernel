@@ -251,8 +251,10 @@ libs-y				:= arch/arm/lib/ $(libs-y)
 # Default target when executing plain make
 ifeq ($(CONFIG_XIP_KERNEL),y)
 KBUILD_IMAGE := xipImage
-else
+else ifeq ($(CONFIG_EMXX_ANDROID),y)
 KBUILD_IMAGE := uImage4
+else 
+KBUILD_IMAGE := uImage
 endif
 
 all:	$(KBUILD_IMAGE)
@@ -265,7 +267,7 @@ archprepare:
 # Convert bzImage to zImage
 bzImage: zImage
 
-zImage Image xipImage bootpImage uImage4: vmlinux
+zImage Image xipImage bootpImage uImage uImage4: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) MACHINE=$(MACHINE) $(boot)/$@
 
 zinstall install: vmlinux
@@ -284,7 +286,8 @@ define archhelp
   echo  '* zImage        - Compressed kernel image (arch/$(ARCH)/boot/zImage)'
   echo  '  Image         - Uncompressed kernel image (arch/$(ARCH)/boot/Image)'
   echo  '* xipImage      - XIP kernel image, if configured (arch/$(ARCH)/boot/xipImage)'
-  echo  '  uImage4        - U-Boot wrapped zImage'
+  echo  '  uImage        - U-Boot wrapped zImage'
+  echo  '  uImage4       - U-Boot wrapped zImage *for Renesas EMEV Android*'
   echo  '  bootpImage    - Combined zImage and initial RAM disk' 
   echo  '                  (supply initrd image via make variable INITRD=<path>)'
   echo  '  install       - Install uncompressed kernel'
