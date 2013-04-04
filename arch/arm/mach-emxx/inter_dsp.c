@@ -57,7 +57,7 @@
 #include <mach/inter_dsp_ioctl.h>
 #include "inter_dsp.h"
 
-#define DSPDEV_MAJOR 0
+/* #define DSPDEV_MAJOR 0 */
 #define INTERDSP_MINOR_SIZE 4
 #define FORCE_INIT 1
 
@@ -176,8 +176,7 @@ do {\
 #define NEED_SHMEM_INIT(X)	(force_init != 0)
 
 #define DSPDEV_CONTROL_MINOR	16
-
-#define DSPDEV_DATAMGR_MINOR	20 /* DATA MANAGER */
+#define DSPDEV_DATAMGR_MINOR	25 /* DATA MANAGER */
 
 /* minor device num possible extension */
 #ifndef INTERDSP_MINOR_SIZE
@@ -4578,11 +4577,13 @@ static int __init interdsp_init(void)
 		devno = MKDEV(dspdev_major, 0);
 		error = register_chrdev_region(devno, DSP_MINOR_MAX,
 						DSP_DEVICE_NAME);
+		printk(KERN_INFO "interdsp: devno %d\n", devno);
 	} else {
 		error = alloc_chrdev_region(&devno,
 						0, DSP_MINOR_MAX,
 						DSP_DEVICE_NAME);
 		dspdev_major = MAJOR(devno);
+		printk(KERN_INFO "interdsp: major %d\n", dspdev_major);
 	}
 	if (error) {
 		printk(KERN_ERR
@@ -4596,8 +4597,7 @@ static int __init interdsp_init(void)
 	if (error)
 		goto unregist_chrdev;
 
-#if 0
-		printk(KERN_NOTICE "InterDSP Driver for EMXX Version "
+	printk(KERN_NOTICE "InterDSP Driver for EMXX Version "
 			INTERDSP_DRIVER_VERSION ": major=%d\n"
 			"Target: Evo\n"
 			"Options:"
@@ -4606,7 +4606,6 @@ static int __init interdsp_init(void)
 #endif /* FORCE_INIT */
 			" DCV"
 			"\n", dspdev_major);
-#endif	/* 0 */
 
 	inter_dsp_class = class_create(THIS_MODULE, DSP_DEVICE_NAME);
 	if (IS_ERR(inter_dsp_class)) {
@@ -4616,14 +4615,18 @@ static int __init interdsp_init(void)
 	}
 
 	platform_driver_register(&inter_dsp_driver);
+	DPRINT("platform dirver registration done\n");
 
 	for (i = 0; i < ARRAY_SIZE(dsp_procfs); i++) {
+                printk(KERN_NOTICE "InterDSP : MKDEV %s minor: %d\n", 
+			dsp_procfs[i].name, dsp_procfs[i].minor);
 		int devno = MKDEV(dspdev_major, dsp_procfs[i].minor);
 		struct device *cd;
 		cd = device_create(inter_dsp_class, inter_dsp_device,
 				devno, NULL, "%s", dsp_procfs[i].name);
 
 		if (IS_ERR(cd)) {
+			printk(KERN_ERR "InterDSP : device create failed (devno %d)\n", devno);
 			goto dev_dest;
 		} else {
 			minor_device_table[i].cls_dev = cd;
@@ -4632,6 +4635,7 @@ static int __init interdsp_init(void)
 			minor_device_table[i].sticky = 1;
 		}
 	}
+	DPRINT("InterDSP devices creation done\n");
 
 	/* get register address */
 	ipi_mon = IT3_IPI0_MON;
