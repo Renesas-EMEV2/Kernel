@@ -268,6 +268,15 @@ config MWL8K
 	  To compile this driver as a module, choose M here: the module
 	  will be called mwl8k.  If unsure, say N.
 
+config EMEV_3GSIMPLE
+	bool "Basic support for Renesas EMEV (Livall tablet) 3G module"
+	depends on MACH_EMEV
+	---help---
+	  Within rfkill handling, enable this for a basic handling of a 3G module
+          used in the Livall tablet board (using a 3G module over a PCI-E bus):
+          - when WiFi is turned ON, 3G is turned OFF
+          - when WiFi is turned OFF, 3G is turned ON
+
 source "drivers/net/wireless/ath/Kconfig"
 source "drivers/net/wireless/b43/Kconfig"
 source "drivers/net/wireless/b43legacy/Kconfig"

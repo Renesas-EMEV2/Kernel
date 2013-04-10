@@ -275,7 +275,7 @@
 #define GPIO_SDI1_WP	GPIO_NULL	/* in  */
 #define GPIO_SDI2_WP	GPIO_NULL	/* in  */
 
-/*** Livall tabelt board ***/
+/*** Livall tablet board ***/
 /* PixCir touchscreeen */
 #define GPIO_PIXCIR_RESET	GPIO_P97
 #define GPIO_PIXCIR_IRQ         GPIO_P29
@@ -286,6 +286,11 @@
 #define BCM_WLAN_PDN		GPIO_P116
 #define BCM_WLAN_RST		GPIO_P117
 #define WIFI_WAKE               GPIO_P106
+
+/* 3G Module */
+#define GPIO_3G_RF_DISABLE      GPIO_P12
+#define GPIO_3G_RESET           GPIO_P25
+#define GPIO_3G_ENABLE          GPIO_P24
 
 /* Headset switch */
 #define GPIO_HEADSET_SWITCH     GPIO_P8

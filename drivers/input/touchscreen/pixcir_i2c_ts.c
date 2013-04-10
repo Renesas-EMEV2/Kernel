@@ -55,7 +55,7 @@
 #define DRIVER_DESC "Pixcir I2C Touchscreen Driver with tune fuction"
 #define DRIVER_LICENSE "GPL"
 
-#define	PIXCIR_DEBUG		1
+/* #define	PIXCIR_DEBUG		1 */
 
 /*********************************V2.0-Bee-0928-TOP****************************************/
 

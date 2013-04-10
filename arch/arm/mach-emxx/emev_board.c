@@ -598,6 +598,11 @@ static void __init emev_board_init(void)
 		pwc_init_data = pwc_board_init_data;
 	}
 #endif
+
+#ifdef CONFIG_EMEV_3GSIMPLE
+        /* disable PCI-E bus power for 3G module */
+        gpio_direction_output(GPIO_3G_ENABLE, 0x00);
+#endif
 }
 
 MACHINE_START(EMXX, "EMXX")

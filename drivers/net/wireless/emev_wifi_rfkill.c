@@ -29,6 +29,9 @@
 #include <linux/platform_device.h>
 #include <linux/emev-rfkill.h>
 #include <linux/delay.h>
+#ifdef CONFIG_EMEV_3GSIMPLE
+#include <linux/suspend.h>
+#endif
 
 //#define DEBUG
 #define TAG "WIFI_RFKILL "
@@ -47,6 +50,37 @@
 
 extern void sdio1_connect(void);
 extern void sdio1_disconnect(void);
+
+#ifdef CONFIG_EMEV_3GSIMPLE
+extern suspend_state_t requested_suspend_state;
+
+/* Over-simplistic 3G power control: if WiFi is ON 3G is OFF, and viceversa.
+   A complete implementation involves AOSP customization, or "rfkill" enhancements, 
+   using these GPIO controls (on a Livall tablet board):
+	3G_RF_DISABLE# => GPIO_P012
+	3G_RST# => GPIO_P025
+	3G_EN => GPIO_P024
+*/
+static void emev_3G_poweroff(int op)
+{
+	debug_print("Switching 3G power off\n");
+
+	/* disable PCI-E bus power */
+        gpio_direction_output(GPIO_3G_ENABLE, 0x00);
+}
+
+static void emev_3G_poweron(int op)
+{
+	debug_print("Switching 3G power on\n");
+ 	/* Do not switch 3g ON if WiFi is off because of suspension */
+	if ( requested_suspend_state != PM_SUSPEND_ON ) {
+		debug_print("Device is sleeping - no 3G needed\n");
+		return; 
+	}
+	/* enable PCI-E bus power */
+        gpio_direction_output(GPIO_3G_ENABLE, 0x01);
+}
+#endif
 
 static void emev_wifi_poweroff(int op)
 {
@@ -76,6 +110,9 @@ static void emev_wifi_poweroff(int op)
 	writel(pull_value,CHG_PULL16);
 	debug_print("\n CHG_PULL16 cur value = %x\n", readl(CHG_PULL16));
 
+#ifdef CONFIG_EMEV_3GSIMPLE
+	emev_3G_poweron(op);
+#endif
 	sdio1_disconnect();    
 }
 
@@ -112,6 +149,9 @@ static void emev_wifi_poweron(int op)
 	writel(pull_value,CHG_PULL16);
 	debug_print("\n CHG_PULL16 cur value = %x\n", readl(CHG_PULL16));
 
+#ifdef CONFIG_EMEV_3GSIMPLE
+	emev_3G_poweroff(op);
+#endif
 	sdio1_connect();
 }
 
@@ -166,10 +206,10 @@ static int emev_rfkill_probe(struct platform_device *pdev)
 	wifi_hw_init();
 
 	pdata->rfkill = rfkill_alloc("emev_wifi", 
-								&pdev->dev, 
-								RFKILL_TYPE_WLAN, 
-								&emev_wifi_rfkill_ops, 
-								NULL);
+					&pdev->dev, 
+					RFKILL_TYPE_WLAN, 
+					&emev_wifi_rfkill_ops, 
+					NULL);
 
 	if (unlikely(!pdata->rfkill)) {
 		return -ENOMEM;
