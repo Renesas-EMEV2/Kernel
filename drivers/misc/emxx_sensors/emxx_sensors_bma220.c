@@ -42,7 +42,7 @@ static int bma220_acc_get_acceleration_data(
 	CHECK_VALUE_RANGE(xyz[0]);
 	CHECK_VALUE_RANGE(xyz[1]);
 	CHECK_VALUE_RANGE(xyz[2]);
-	//printk("[0]:%x data[0]:%d, data[1]:%d, data[2]:%d  %d:%d:%d\n", reg_data[0], xyz[0], xyz[1], xyz[2], sensors_obj->cali[0], sensors_obj->cali[1], sensors_obj->cali[2]);
+	// printk("BMA220 data - reg[0]:%x xyz[0]:%d, xyz[1]:%d, xyz[2]:%d  cali - %d:%d:%d\n", reg_data[0], xyz[0], xyz[1], xyz[2], sensors_obj->cali[0], sensors_obj->cali[1], sensors_obj->cali[2]);
 	
 	return err;
 }
@@ -54,6 +54,7 @@ static int bma220_set_delay(struct emxx_sensors_pub* sensors_pub, struct emxx_se
 
 static int bma220_calibrate(struct emxx_sensors_pub* sensors_pub, struct emxx_sensors_obj* sensors_obj, int cali[4])
 {
+	printk("BMA220 calibrate\n");
 	//printk("[%s:%d:%d]:%d:%d:%d -- %d:%d:%d \n", __func__, __LINE__, cali[0], cali[1], cali[2], cali[3], sensors_obj->val[0], sensors_obj->val[1], sensors_obj->val[2]);
 	if(cali[0] == 0) {
 		sensors_obj->cali[0] = sensors_obj->cali[1] = sensors_obj->cali[2] = 0;
@@ -75,6 +76,7 @@ static int bma220_calibrate(struct emxx_sensors_pub* sensors_pub, struct emxx_se
 
 int bma220_open(struct emxx_sensors_pub* sensors_pub, struct emxx_sensors_obj* sensors_obj)
 {
+	printk("BMA220 open\n");
 	struct bma220_obj *bma220_obj = (struct bma220_obj *)sensors_obj;
 	int ret;
 	u8 acc_read[2];
@@ -100,6 +102,7 @@ int bma220_open(struct emxx_sensors_pub* sensors_pub, struct emxx_sensors_obj* s
 
 int bma220_close(struct emxx_sensors_pub* sensors_pub, struct emxx_sensors_obj* sensors_obj)
 {
+	printk("BMA220 close\n");
 	//printk("[%s:%d] \n", __func__, __LINE__);
 	sensors_obj->suspend(sensors_pub, sensors_obj);
 	return 0;

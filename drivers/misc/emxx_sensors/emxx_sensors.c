@@ -416,12 +416,20 @@ static int __devinit emxx_sensors_platform_probe(struct platform_device *pdev)
 	input->open = emxx_sensors_input_open;
 	input->close = emxx_sensors_input_close;
 	set_bit(EV_ABS, input->evbit);
-	input_set_abs_params(input, EVENT_TYPE_ACCEL_X, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
-	input_set_abs_params(input, EVENT_TYPE_ACCEL_Y, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
-	input_set_abs_params(input, EVENT_TYPE_ACCEL_Z, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
-	input_set_abs_params(input, EVENT_TYPE_MAGV_X, -msensor_range(), msensor_range(), 0, 0);
-	input_set_abs_params(input, EVENT_TYPE_MAGV_Y, -msensor_range(), msensor_range(), 0, 0);
-	input_set_abs_params(input, EVENT_TYPE_MAGV_Z, -msensor_range(), msensor_range(), 0, 0);
+	if (sensors_pub->has_sensors & SENSORS_ACCELERATION) 
+	{
+		db_sensor("emxx-sensors - setting acceleration sensor ranges");
+		input_set_abs_params(input, EVENT_TYPE_ACCEL_X, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
+		input_set_abs_params(input, EVENT_TYPE_ACCEL_Y, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
+		input_set_abs_params(input, EVENT_TYPE_ACCEL_Z, -emxx_gsensor_range(), emxx_gsensor_range(), 0, 0);
+	}
+	if (sensors_pub->has_sensors & SENSORS_MAGNETIC_FIELD) 
+	{
+		db_sensor("emxx-sensors - setting magnetic sensor ranges");
+		input_set_abs_params(input, EVENT_TYPE_MAGV_X, -msensor_range(), msensor_range(), 0, 0);
+		input_set_abs_params(input, EVENT_TYPE_MAGV_Y, -msensor_range(), msensor_range(), 0, 0);
+		input_set_abs_params(input, EVENT_TYPE_MAGV_Z, -msensor_range(), msensor_range(), 0, 0);	
+	}
 	input->name = "emxx-sensors";
 	input->id.bustype = BUS_HOST;
 	input->dev.parent = &pdev->dev;
