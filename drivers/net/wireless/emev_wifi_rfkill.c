@@ -31,9 +31,10 @@
 #include <linux/delay.h>
 #ifdef CONFIG_EMEV_3GSIMPLE
 #include <linux/suspend.h>
+#include <linux/interrupt.h>
 #endif
 
-//#define DEBUG
+#define DEBUG
 #define TAG "WIFI_RFKILL "
 
 #ifdef DEBUG
@@ -57,28 +58,115 @@ extern suspend_state_t requested_suspend_state;
 /* Over-simplistic 3G power control: if WiFi is ON 3G is OFF, and viceversa.
    A complete implementation involves AOSP customization, or "rfkill" enhancements, 
    using these GPIO controls (on a Livall tablet board):
-	3G_RF_DISABLE# => GPIO_P012
-	3G_RST# => GPIO_P025
-	3G_EN => GPIO_P024
+	GPIO_3G_RF_DISABLE => GPIO_P012
+	GPIO_3G_RESET      => GPIO_P025
+	GPIO_3G_ENABLE     => GPIO_P024
+        GPIO_MODEM_WAKE    => GPIO_P105
 */
+
+#define STATE_OFF 0
+#define STATE_ON 1
+#define STATE_GET 3
+static int modem_power(int state)
+{
+    int ret = -1;
+    switch(state) {
+    case STATE_GET:
+        ret = gpio_get_value(GPIO_P24) ? STATE_ON : STATE_OFF;
+        break;
+    case STATE_ON:
+        gpio_direction_output(GPIO_P12, 0);
+        gpio_direction_output(GPIO_P25, 0);
+        gpio_direction_output(GPIO_P24, 1);
+        mdelay(50);
+        gpio_direction_output(GPIO_P25, 1);
+        mdelay(50);
+        gpio_direction_output(GPIO_P12, 1);
+        ret = STATE_ON;
+        break;
+    case STATE_OFF:
+        gpio_direction_output(GPIO_P25, 0);
+        gpio_direction_output(GPIO_P12, 0);
+        gpio_direction_output(GPIO_P24, 0);
+
+        ret = STATE_OFF;
+        break;
+    }
+    return ret;
+}
+
+static irqreturn_t modem_wake_isr(int irq, void *dev_id)
+{
+    return IRQ_HANDLED;
+}
+
+#define MODEM_WAKE GPIO_P105
+static int init_modem_wake_gpio()
+{
+    int error;
+    int irq;
+
+    writel(readl(CHG_PINSEL_G096) | 0x1<<9, CHG_PINSEL_G096); // setup gpio func
+    writel((readl(CHG_PULL12) | 0x00070000), CHG_PULL12); // setup pull up pull down func
+//    set_irq_type(GPIO_P105, IRQ_TYPE_EDGE_BOTH);
+
+    error = gpio_request(MODEM_WAKE,  "modem_wake");
+    if (error < 0) {
+        pr_err("gpio-keys: failed to request GPIO %d,"
+            " error %d\n", MODEM_WAKE, error);
+        goto fail2;
+    }
+
+    error = gpio_direction_input(MODEM_WAKE);
+    if (error < 0) {
+        printk(KERN_ERR "gpio-keys: failed to configure input"
+            " direction for GPIO %d, error %d\n",
+            MODEM_WAKE, error);
+        gpio_free(MODEM_WAKE);
+        goto fail2;
+    }
+
+    irq = gpio_to_irq(MODEM_WAKE);
+    if (irq < 0) {
+        error = irq;
+        printk(KERN_ERR "modem-wake: Unable to get irq number"
+            " for GPIO %d, error %d\n",
+            MODEM_WAKE, error);
+        gpio_free(MODEM_WAKE);
+        goto fail2;
+    }
+
+    error = request_irq(irq, modem_wake_isr,
+                IRQF_SAMPLE_RANDOM | IRQF_TRIGGER_RISING  ,"modem_wake", NULL);
+    if (error) {
+        printk(KERN_ERR "gpio-keys: Unable to claim irq %d; error %d\n",
+            irq, error);
+        gpio_free(MODEM_WAKE);
+        goto fail2;
+    }
+    return 0;
+fail:
+fail2:
+    return -1;
+}
+
 static void emev_3G_poweroff(int op)
 {
 	debug_print("Switching 3G power off\n");
-
-	/* disable PCI-E bus power */
-        gpio_direction_output(GPIO_3G_ENABLE, 0x00);
+        modem_power(STATE_OFF);
 }
 
 static void emev_3G_poweron(int op)
 {
 	debug_print("Switching 3G power on\n");
- 	/* Do not switch 3g ON if WiFi is off because of suspension */
+ 	/* Do not switch 3g ON if WiFi is off because of suspension 
+        ------ requested_suspend_state value to fix ---------
 	if ( requested_suspend_state != PM_SUSPEND_ON ) {
-		debug_print("Device is sleeping - no 3G needed\n");
+		debug_print("Device requested_suspend_state is sleeping - no 3G needed\n");
 		return; 
 	}
-	/* enable PCI-E bus power */
-        gpio_direction_output(GPIO_3G_ENABLE, 0x01);
+	*/
+        modem_power(STATE_ON);
 }
 #endif
 
@@ -155,6 +243,11 @@ static void emev_wifi_poweron(int op)
 	sdio1_connect();
 }
 
+static void bcm_wlan_power_on(int op) { return emev_wifi_poweron(op); }
+static void bcm_wlan_power_off(int op) { return emev_wifi_poweroff(op); }
+EXPORT_SYMBOL(bcm_wlan_power_on);
+EXPORT_SYMBOL(bcm_wlan_power_off);
+
 int emev_rfkill_set_power(void *data, enum rfkill_user_states state)
 {
 	debug_print("Rfkill wifi set power:\n");
@@ -184,6 +277,11 @@ static void wifi_hw_init(void)
 	writel(readl(CHG_PINSEL_G064)&~0x0000000F, CHG_PINSEL_G064);
 	writel(readl(CHG_PINSEL_G032)&~0xE0000000, CHG_PINSEL_G032);
 	gpio_direction_output(WIFI_RST, 0);
+
+#ifdef CONFIG_EMEV_3GSIMPLE
+	init_modem_wake_gpio();
+#endif
+
 }
 
 static int emev_rfkill_set_radio_block(void *data, bool blocked)
