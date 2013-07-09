@@ -56,7 +56,6 @@ struct scrn_mode{
 	int   page1; /* page 1 is out of display(0)/waiting for on display(1) */
 };
 
-
 /* frame buffer output infomation (use I/F fb <-> 2D API) */
 enum EMXX_FB_OUTPUT_MODE{
 	EMXX_FB_OUTPUT_MODE_LCD,	/* LCD(WVGA:800x480)     */
@@ -64,6 +63,13 @@ enum EMXX_FB_OUTPUT_MODE{
 	EMXX_FB_OUTPUT_MODE_HDMI_720P,	/* HDMI(720p:1280x720)   */
 };
 
+/* frame buffer output size infomation */
+enum EMXX_FB_OUTPUT_SIZE{
+	EMXX_FB_OUTPUT_SIZE_100,
+	EMXX_FB_OUTPUT_SIZE_95, 
+	EMXX_FB_OUTPUT_SIZE_90,
+	EMXX_FB_OUTPUT_SIZE_85
+};
 
 struct emxx_fb_rect {
 	unsigned int x;

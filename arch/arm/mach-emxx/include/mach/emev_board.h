@@ -51,6 +51,7 @@
 #define I2C_SLAVE_EXTIO1_ADDR	0x20
 //#define I2C_SLAVE_EXTIO2_NAME	"max7318_2"
 //#define I2C_SLAVE_EXTIO2_ADDR	0x21
+
 #define I2C_SLAVE_CAM_NAME	"camera"
 #define I2C_SLAVE_CAM_ADDR	0x50
 
@@ -58,8 +59,18 @@
 #define I2C_SLAVE_CAM_ADDR_GC0307       0x21
 #define I2C_SLAVE_CAM_AF_NAME	"camera_af"
 #define I2C_SLAVE_CAM_AF_ADDR	0x0C
+
+#if defined(CONFIG_EMXX_HDMI)
+#if defined(CONFIG_EMXX_HDMI_IT6610)
 #define I2C_SLAVE_HDMI_NAME	"adv7523"
 #define I2C_SLAVE_HDMI_ADDR	0x39
+#endif
+#if defined(CONFIG_EMXX_HDMI_ADV7523)
+#define I2C_SLAVE_HDMI_NAME	"it6610"
+#define I2C_SLAVE_HDMI_ADDR	0x4c
+#endif
+#endif
+
 #define I2C_SLAVE_SPDIF_NAME	"cs8427"
 #define I2C_SLAVE_SPDIF_ADDR	0x10
 //#define I2C_SLAVE_CODEC_NAME	"ak4648"

@@ -25,9 +25,9 @@
  *
  *
  * GPIO_P104: LCD backlight, high=on, low=off
- * GPIO_p103: LCD Reset, input, always pull up
+ * GPIO_P103: LCD Reset, input, always pull up
  * GPIO_P150: 5V EN, high=on
- * GPIO_P27 : HDMI HPD, input
+ * GPIO_P27 : HDMI Hot-Plug-Detect (HPD), input
  * GPIO_P99 : LCD_DISPLAY(LCD_ON), high=on
  *                          LCD          HDMI     suspend
  * LCD DISP(104)   IN       pull up       up       up
@@ -41,8 +41,9 @@
  *  A) LCD DISP ON--->fill frame buf-->LCD BK ON (use 2 GPIO control)
  *  B) PWM=off-->fill frame buf-->LCD DISP ON-->PWM=on (our PCB, only 1 GPIO)
  *
- * I remove HDMI HPD(GPIO_P27), must modify in u-boot, otherwise LCD maybe does not display
+ * I remove HDMI HPD (GPIO_P27), must modify in u-boot, otherwise LCD maybe does not display
  *	set HPD gpio_input and pull down
+ *
  * 2011-01-27 hengai
  *	correct some description for GPIO
  *
@@ -639,6 +640,12 @@ int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
 	}
 	if (blank_state.lcd_backlight == 1)
 		lcd_hw_backlight_on();
+
+	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_HDMI_720P ||
+		lcdc_output_mode == EMXX_FB_OUTPUT_MODE_HDMI_1080I) {
+		printk("HDMI output mode, lcd backlight off.\n");
+		lcd_module_hw_power_off();
+	}
 
 	return 0;
 }

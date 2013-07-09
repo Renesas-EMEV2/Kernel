@@ -51,6 +51,9 @@
 
 /* #define XYP_DEBUG_DEVICE */
 
+#include <mach/fbcommon.h>
+extern enum EMXX_FB_OUTPUT_MODE HDMI_OUTPUT_MODE;
+
 /* static initial value */
 #define ID_VALUE		NULL
 #define I2C_CODEC_CLIENT_VALUE	NULL;
@@ -749,8 +752,14 @@ static int codec_power_on(void)
 	rt5621_write_index_reg(EQ_OUTPUT_VOL_CONTROL, EQ_OUTPUT_VOL_ADD_6DB);
 	rt5621_update_eqmode(HFREQ);
 #endif
-	res = CODEC_WRITE(RT5621_PLL_CTRL, 0x2323);	/* 44.1KHz */
+
 	/* res = CODEC_WRITE(RT5621_PLL_CTRL, 0xfc7d);	 22.05KHz */
+	if (HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		res = CODEC_WRITE(RT5621_PLL_CTRL, 0xd36b);	/* 48.0KHz */
+	} else {
+		res = CODEC_WRITE(RT5621_PLL_CTRL, 0x2323);	/* 44.1KHz */
+	}
+
 	if (res != 0) {
 		goto err1;
 	}
@@ -760,8 +769,12 @@ static int codec_power_on(void)
 		goto err1;
 	}
 
-	res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	/* 44.1KHz */
 	/* res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x266d);	 22.05KHz */
+	if (HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	/* 48.0KHz */
+	} else {
+		res = CODEC_WRITE(RT5621_STEREO_AD_DA_CLK_CTRL, 0x166d);	/* 44.1KHz */
+	}
 	if (res != 0) {
 		goto err1;
 	}

@@ -90,6 +90,17 @@
 #include "../../nts/emxx_nts.h"
 #endif
 
+#ifdef CONFIG_EMXX_HDMI
+/* HDMI output mode notifier from emxx_it6610.c */
+#include <linux/notifier.h>
+extern int register_hdmi_notifier(struct notifier_block*);
+extern int unregister_hdmi_notifier(struct notifier_block*);
+static void hdmi_output_setup(struct notifier_block *, unsigned long , void *);
+static struct notifier_block hdmi_detect_notifier =
+{
+    .notifier_call = hdmi_output_setup,
+};
+#endif
 
 /********************************************************
  *  Definitions                                         *
@@ -2069,6 +2080,11 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 	/* set drvdate */
 	dev_set_drvdata(&dev->dev, &drvdata);
 
+#ifdef CONFIG_EMXX_HDMI
+		/* HDMI output mode notifier register */
+		register_hdmi_notifier(&hdmi_detect_notifier);
+#endif
+
 #if defined(CONFIG_PM) || defined(CONFIG_DPM)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	drvdata.dev = dev;
@@ -2087,6 +2103,22 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_EMXX_HDMI
+/******************************************************************************
+* MODULE   : hdmi_output_setup
+* FUNCTION : HDMI receiver insert notification, switch to the HDMI output mode.
+* RETURN   : none
+******************************************************************************/
+static void hdmi_output_setup(struct notifier_block *this, unsigned long event, void *ptr)
+{
+	int i;
+	
+	for (i = 0; i < EMXX_FB_DEVICES; i++) {
+		struct fb_info *info = drvdata.info[i];
+		info->var.reserved[0] = event;
+	}
+}
+#endif
 
 /******************************************************************************
 * MODULE   : emxx_fb_probe_error
@@ -2470,6 +2502,11 @@ static int emxx_fb_remove(struct platform_device *device)
 	struct emxx_fb_drvdata *drvdata = platform_get_drvdata(device);
 	struct fb_info *info;
 	int i;
+
+#ifdef CONFIG_EMXX_HDMI
+	/* HDMI output mode notifier unregister */
+	unregister_hdmi_notifier(&hdmi_detect_notifier);
+#endif
 
 #if defined(CONFIG_PM) || defined(CONFIG_DPM)
 #ifdef CONFIG_HAS_EARLYSUSPEND

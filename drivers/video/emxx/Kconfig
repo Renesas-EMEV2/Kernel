@@ -77,7 +77,21 @@ config EMXX_HDMI
         depends on EMXX_VIDEO
 	default n
         help
-          This is the HDMI device driver for EMXX seriase boards.
+          This is the HDMI device driver for EMXX series boards.
+
+config EMXX_HDMI_IT6610
+	tristate "EMXX HDMI ITE6610 support"
+        depends on EMXX_HDMI
+	default y
+        help
+          Support ITE6610 HDMI for EMXX boards.
+
+config EMXX_HDMI_IT6610_DEBUG
+	tristate "EMXX HDMI ITE6610 debug output"
+        depends on EMXX_HDMI_IT6610
+	default n
+        help
+          Support ITE6610 HDMI for EMXX boards debug output.
 
 config EMXX_HDMI_ADV7523
 	tristate "EMXX HDMI ADV7523 support"
