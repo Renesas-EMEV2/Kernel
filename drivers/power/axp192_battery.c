@@ -96,7 +96,9 @@ struct battery_info {
 	u32 batt_temp;		/* Battery Temperature (C) from ADC */
 	u32 batt_temp_adc;	/* Battery Temperature ADC value */
 	u32 batt_temp_adc_cal;	/* Battery Temperature ADC value (calibrated) */
-	u32 batt_current;	/* Battery current from ADC */
+	u32 batt_charging_cur;       /* Battery current while charging */
+	u32 batt_discharging_cur;    /* Battery current while discharging */
+	u32 batt_current;       /* Battery current = discharging - charging */
 	u32 level;		/* formula */
 	u32 charging_source;	/* 0: no cable, 1:usb, 2:AC */
 	u32 charging_enabled;	/* 0: Disable, 1: Enable */
@@ -174,6 +176,7 @@ static int axp192_get_bat_vol(struct power_supply *bat_ps)
 		//bat_vol = axp192_battery_vol();
 		bat_discharge_cur = axp192_battery_discharging_cur();
 		bat_charge_cur = axp192_battery_charging_cur();
+                BATT("bat_vol = %d; charg_cur = %d; discharge_cur = %d\n", bat_vol, bat_charge_cur, bat_discharge_cur);
 		bat_vol = bat_vol + bat_discharge_cur * 2 / 10;
 		bat_vol = bat_vol - bat_charge_cur * 2 / 10;
 		if(vol_flag == 0){
@@ -317,6 +320,9 @@ static struct device_attribute axp192_battery_attrs[] = {
 	SEC_BATTERY_ATTR(batt_temp),
 	SEC_BATTERY_ATTR(batt_temp_adc),
 	SEC_BATTERY_ATTR(batt_temp_adc_cal),
+	SEC_BATTERY_ATTR(batt_charging_cur),
+	SEC_BATTERY_ATTR(batt_discharging_cur),
+	SEC_BATTERY_ATTR(batt_current)
 };
 
 enum {
@@ -326,6 +332,9 @@ enum {
 	BATT_TEMP,
 	BATT_TEMP_ADC,
 	BATT_TEMP_ADC_CAL,
+        BATT_CHARGING_CUR,
+        BATT_DISCHARGING_CUR,
+        BATT_CURRENT
 };
 
 static int axp192_bat_create_attrs(struct device * dev)
@@ -377,6 +386,18 @@ static ssize_t axp192_bat_show_property(struct device *dev,
 	case BATT_TEMP_ADC_CAL:
 		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
 				       axp192_bat_info.bat_info.batt_temp_adc_cal);
+		break;
+	case BATT_CHARGING_CUR:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				       axp192_bat_info.bat_info.batt_charging_cur);
+		break;
+	case BATT_DISCHARGING_CUR:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				       axp192_bat_info.bat_info.batt_discharging_cur);
+		break;
+	case BATT_CURRENT:
+		i += scnprintf(buf + i, PAGE_SIZE - i, "%d\n",
+				       axp192_bat_info.bat_info.batt_current);
 		break;
 	default:
 		i = -EINVAL;
@@ -529,6 +550,11 @@ static void axp192_bat_status_update(struct power_supply *bat_ps)
 	old_is_full = axp192_bat_info.bat_info.batt_is_full;
 	axp192_bat_info.bat_info.batt_temp = axp192_get_bat_temp(bat_ps);
 	axp192_bat_info.bat_info.batt_vol = axp192_get_bat_vol(bat_ps);
+	axp192_bat_info.bat_info.batt_charging_cur = axp192_battery_charging_cur();
+	axp192_bat_info.bat_info.batt_discharging_cur = axp192_battery_discharging_cur();
+	axp192_bat_info.bat_info.batt_current = 
+             axp192_bat_info.bat_info.batt_discharging_cur -
+	     axp192_bat_info.bat_info.batt_charging_cur;
 	axp192_bat_info.bat_info.level = axp192_get_bat_level(bat_ps);
 	if((axp192_battery_charging_status()==0) && axp192_is_battery_in() && axp192_battery_current_direction())
 		axp192_bat_info.bat_info.batt_is_full = 1;
