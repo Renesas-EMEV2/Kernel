@@ -2451,7 +2451,7 @@ HDCP_Authenticate()
 
     // Authenticate should be called after AFE setup up.
 
-    ErrorF("HDCP_Authenticate():\n") ;
+    ErrorF("HDCP_Authenticate() ...\n") ;
 	HDCP_Reset() ;
     // ClearDDCFIFO() ;
     // AbortDDC() ;
@@ -2465,18 +2465,16 @@ HDCP_Authenticate()
             return ER_FAIL ;
         }
 
-
-
     	if(bHDMIMode)
     	{
     		if((BStatus & B_CAP_HDMI_MODE)!=0)
     		{
     		    break ;
     		}
-    		else
-    		{
-    			ErrorF("Sink HDCP in DVI mode over HDMI,do not authenticate and encryption. BCaps = %x BStatus = %x\n",BCaps,BStatus) ;
-    		}
+    		//else
+    		//{
+    			// ErrorF("Sink HDCP in DVI mode over HDMI,do not authenticate and encryption. BCaps = %x BStatus = %x\n",BCaps,BStatus) ;
+    		//}
     	}
     	else
     	{
@@ -2484,10 +2482,10 @@ HDCP_Authenticate()
     		{
     		    break ;
     		}
-    		else
-    		{
-    			ErrorF("Sink HDCP in HDMI mode over DVI,do not authenticate and encryption. BCaps = %x BStatus = %x\n",BCaps,BStatus) ;
-    		}
+    		//else
+    		//{
+    			// ErrorF("Sink HDCP in HDMI mode over DVI,do not authenticate and encryption. BCaps = %x BStatus = %x\n",BCaps,BStatus) ;
+    		//}
     	}
     	DelayMS(20) ;
     }
@@ -2515,7 +2513,7 @@ HDCP_Authenticate()
     	}
     }
 
-	ErrorF("BCaps = %02X BStatus = %04X\n",BCaps,BStatus) ;
+    ErrorF("BCaps = %02X BStatus = %04X\n",BCaps,BStatus) ;
     /*
     if((BStatus & M_DOWNSTREAM_COUNT)> 6)
     {

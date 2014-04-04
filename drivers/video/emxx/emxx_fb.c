@@ -233,6 +233,7 @@ struct _emxx_fb_par {
 	int                      old_offset;
 #endif	/* CONFIG_FB_EMXX_PANDISP */
 	enum EMXX_FB_OUTPUT_MODE output_mode;
+	enum EMXX_FB_OUTPUT_SIZE output_size;
 };
 #define emxx_fb_par struct _emxx_fb_par
 
@@ -372,8 +373,10 @@ static int emxx_fb_ioc_set_modes(struct fb_info *info, unsigned int cmd,
 static int emxx_fb_ioc_update_scrn(struct fb_info *info, unsigned int cmd,
  unsigned long arg);
 static int emxx_fb_ioc_get_output(struct fb_info *info, unsigned long arg);
+static int emxx_fb_set_output(struct fb_info *info, enum EMXX_FB_OUTPUT_MODE mode);
 static int emxx_fb_ioc_set_output(struct fb_info *info, unsigned long arg);
-
+static int emxx_fb_ioc_get_output_size(struct fb_info *info, unsigned long arg);
+static int emxx_fb_ioc_set_output_size(struct fb_info *info, unsigned long arg);
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
 static int emxx_fb_ioc_blit(struct fb_info *info, unsigned long arg);
@@ -510,6 +513,14 @@ int emxx_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 	case EMXX_FB_SET_OUTPUT:
 		/* Set output device information */
 		return emxx_fb_ioc_set_output(info, arg);
+
+ 	case EMXX_FB_GET_OUTPUT_SIZE:
+ 		/* get output size information */
+ 		return emxx_fb_ioc_get_output_size(info, arg);
+ 
+ 	case EMXX_FB_SET_OUTPUT_SIZE:
+ 		/* Set output size information */
+ 		return emxx_fb_ioc_set_output_size(info, arg);
 
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
@@ -709,10 +720,46 @@ static int emxx_fb_ioc_get_output(struct fb_info *info, unsigned long arg)
 	return 0;
 }
 
+/******************************************************************************
+* MODULE   : emxx_fb_set_output
+* FUNCTION : frame buffer setting output mode
+* RETURN   :  0      : success
+*            -EFAULT :
+*            -EINVAL :
+* NOTE     : none
+******************************************************************************/
+static int emxx_fb_set_output(struct fb_info *info, enum EMXX_FB_OUTPUT_MODE mode)
+{
+	emxx_fb_par *par = (emxx_fb_par *)info->par;
+	printk_dbg((_DEBUG_FB & 0x01), "<start>\n");
+
+	switch (mode) {
+	case EMXX_FB_OUTPUT_MODE_LCD:
+		break;
+	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
+	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
+		break;
+	default:
+		printk_dbg((_DEBUG_FB & 0x01),
+		 "enum EMXX_FB_OUTPUT_MODE value is out of range\n");
+		return -EINVAL;
+		break;
+	}
+
+        printk(KERN_INFO "emxx_fb_set_output to %u\n", mode);
+	down(&par->sem_outputmode);
+	set_lcd_var(mode, par);
+	set_lcd_size(mode, par);
+	par->output_mode = mode;
+	up(&par->sem_outputmode);
+
+	printk_dbg((_DEBUG_FB & 0x01), "<end>\n");
+	return 0;
+}
 
 /******************************************************************************
 * MODULE   : emxx_fb_ioc_set_output
-* FUNCTION : frame buffer driver ioctl EMXX_FB_SET_OUTPUT
+* FUNCTION : ioctl interface to frame buffer setting output mode
 * RETURN   :  0      : success
 *            -EFAULT :
 *            -EINVAL :
@@ -720,44 +767,79 @@ static int emxx_fb_ioc_get_output(struct fb_info *info, unsigned long arg)
 ******************************************************************************/
 static int emxx_fb_ioc_set_output(struct fb_info *info, unsigned long arg)
 {
-	enum EMXX_FB_OUTPUT_MODE mode;
+        enum EMXX_FB_OUTPUT_MODE mode;
+	int ret = 0;
+	printk_dbg((_DEBUG_FB & 0x01), "<start>\n");
+
+	/* copy from user EMXX_FB_OUTPUT_MODE information */
+	if (copy_from_user(&mode, (enum EMXX_FB_OUTPUT_MODE *) arg,
+			    sizeof(enum EMXX_FB_OUTPUT_MODE))) {
+		return -EFAULT;
+	}
+        ret = emxx_fb_set_output(info, mode);
+
+	printk_dbg((_DEBUG_FB & 0x02), "< end >\n");
+	return ret;
+}
+
+/******************************************************************************
+* MODULE   : emxx_fb_ioc_get_output_size
+* FUNCTION : frame buffer driver ioctl EMXX_FB_GET_OUTPUT_SIZE
+* RETURN   :  0      : success
+* NOTE     : none
+******************************************************************************/
+static int emxx_fb_ioc_get_output_size(struct fb_info *info, unsigned long arg)
+{
+	enum EMXX_FB_OUTPUT_SIZE size;
 	emxx_fb_par *par = (emxx_fb_par *)info->par;
 
 	printk_dbg((_DEBUG_FB & 0x01), "<start>\n");
 
 	down(&par->sem_outputmode);
-
-	/* copy from user EMXX_FB_OUTPUT_MODE infomation */
-	if (copy_from_user(&mode, (enum EMXX_FB_OUTPUT_MODE *) arg,
-			    sizeof(enum EMXX_FB_OUTPUT_MODE))) {
+	size = par->output_size;
+	/* copy to user EMXX_FB_OUTPUT_SIZE infomation */
+	if (copy_to_user((enum EMXX_FB_OUTPUT_SIZE *) arg, &size,
+			  sizeof(enum EMXX_FB_OUTPUT_SIZE))) {
 		up(&par->sem_outputmode);
 		return -EFAULT;
 	}
-
-	switch (mode) {
-	case EMXX_FB_OUTPUT_MODE_LCD:
-	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
-	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
-		break;
-	default:
-		printk_dbg((_DEBUG_FB & 0x01),
-		 "enum EMXX_FB_OUTPUT_MODE value is out of range\n");
-		up(&par->sem_outputmode);
-		return -EINVAL;
-		break;
-	}
-
-	set_lcd_var(mode, par);
-	set_lcd_size(mode, par);
-
-	par->output_mode = mode;
-
 	up(&par->sem_outputmode);
 
 	printk_dbg((_DEBUG_FB & 0x02), "< end >\n");
 	return 0;
 }
 
+/******************************************************************************
+* MODULE   : emxx_fb_ioc_set_output_size
+* FUNCTION : frame buffer driver ioctl EMXX_FB_SET_OUTPUT_SIZE
+* RETURN   :  0      : success
+*            -EFAULT :
+*            -EINVAL :
+* NOTE     : none
+******************************************************************************/
+static int emxx_fb_ioc_set_output_size(struct fb_info *info, unsigned long arg)
+{
+	enum EMXX_FB_OUTPUT_SIZE size;
+	emxx_fb_par *par = (emxx_fb_par *)info->par;
+
+	printk_dbg((_DEBUG_FB & 0x01), "<start>\n");
+
+	down(&par->sem_outputmode);
+
+	/* copy from user EMXX_FB_OUTPUT_SIZE infomation */
+	if (copy_from_user(&size, (enum EMXX_FB_OUTPUT_SIZE *) arg,
+			    sizeof(enum EMXX_FB_OUTPUT_SIZE))) {
+		up(&par->sem_outputmode);
+		return -EFAULT;
+	}
+
+	par->output_size = size;
+
+	up(&par->sem_outputmode);
+
+	printk_dbg((_DEBUG_FB & 0x02), "< end >\n");
+	return 0;
+}
 
 #ifdef CONFIG_EMXX_ANDROID
 #ifdef CONFIG_ANDROID_PMEM
@@ -849,6 +931,7 @@ static void set_lcd_size(enum EMXX_FB_OUTPUT_MODE mode, emxx_fb_par *par)
 	switch (mode) {
 	default:
 	case EMXX_FB_OUTPUT_MODE_LCD:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_LCD\n");
 		fb_data[par->devflag].fb_image_info.image_data.hsize =
 		 FRONT_WIDTH_LCD;
 		fb_data[par->devflag].fb_image_info.image_data.vsize =
@@ -857,6 +940,7 @@ static void set_lcd_size(enum EMXX_FB_OUTPUT_MODE mode, emxx_fb_par *par)
 		 FRONT_WIDTH_V_LCD * BYTES_PER_PIXEL;
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_HDMI_1080I\n");
 		fb_data[par->devflag].fb_image_info.image_data.hsize =
 		 FRONT_WIDTH_1080I;
 		fb_data[par->devflag].fb_image_info.image_data.vsize =
@@ -865,6 +949,7 @@ static void set_lcd_size(enum EMXX_FB_OUTPUT_MODE mode, emxx_fb_par *par)
 		 FRONT_WIDTH_V_1080I * BYTES_PER_PIXEL;
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_HDMI_720P\n");
 		fb_data[par->devflag].fb_image_info.image_data.hsize =
 		 FRONT_WIDTH_720P;
 		fb_data[par->devflag].fb_image_info.image_data.vsize =
@@ -891,13 +976,15 @@ static void set_lcd_var(enum EMXX_FB_OUTPUT_MODE mode, emxx_fb_par *par)
 	printk_dbg((_DEBUG_FB & 0x01), "<start>\n");
 
 	down(&par->sem_fb_image_info);
-
+ 
 	switch (mode) {
 	default:
 	case EMXX_FB_OUTPUT_MODE_LCD:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_LCD\n");
 		par->fb_inf->var = emxx_fb_default;
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_HDMI_1080I\n");
 		par->fb_inf->var = emxx_fb_default;
 		par->fb_inf->var.xres         = FRONT_WIDTH_1080I;
 		par->fb_inf->var.yres         = FRONT_HEIGHT_1080I;
@@ -916,6 +1003,7 @@ static void set_lcd_var(enum EMXX_FB_OUTPUT_MODE mode, emxx_fb_par *par)
 		par->fb_inf->var.vmode        = FB_VMODE_INTERLACED;
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
+                printk_dbg((_DEBUG_FB & 0x01), "setting OUTPUT_MODE_HDMI_720P\n");
 		par->fb_inf->var = emxx_fb_default;
 		par->fb_inf->var.xres         = FRONT_WIDTH_720P;
 		par->fb_inf->var.yres         = FRONT_HEIGHT_720P;
@@ -1429,12 +1517,21 @@ int emxx_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 static int emxx_fb_open(struct fb_info *info, int user)
 {
 	emxx_fb_par *par      = (emxx_fb_par *)info->par;
+        int ret = 0;
 
 	if (fb_data[par->devflag].is_first) {
+
+		/* If in HDMI mode, first set paramaters accordingly */
+		printk(KERN_INFO "emxx_fb_open: output mode is %u\n", info->var.reserved[0]);
+		if (info->var.reserved[0] != 0) {
+			ret = emxx_fb_set_output(info, info->var.reserved[0]);
+			if (ret) return ret;
+		}
+
 		/* initialize LCD driver */
-		if (init_lcdhw() != 0) {
-			printk_wrn("initialize LCD failed.\n");
-			return -EBUSY;
+                if (init_lcdhw() != 0) {
+		       printk_wrn("initialize LCD failed.\n");
+		       return -EBUSY;
 		}
 
 		printk_dbg((_DEBUG_FB & 0x10), "queue_work\n");
@@ -2057,6 +2154,8 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 
 		/* output mode initialize */
 		par->output_mode = EMXX_FB_OUTPUT_MODE_LCD;
+                /* For HDMI mode */
+		par->output_size = EMXX_FB_OUTPUT_SIZE_95;
 
 		/* variable initialize */
 		set_val_init(info, fb_num);
@@ -2066,10 +2165,11 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 
 		/* for callback function */
 		fb_data[fb_num].emxx_fb_dev = par;
+
 	}
 	fb_num--;
 
-	/*initialize LCD driver */
+	/* initialize LCD driver */
 	if (emxx_lcd_init_module() != 0) {
 		printk_wrn("cannot initialize LCD\n");
 		emxx_fb_probe_error(FB_INIT_ERROR__LCD_NOT_INITIALIZE,
@@ -2081,8 +2181,8 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 	dev_set_drvdata(&dev->dev, &drvdata);
 
 #ifdef CONFIG_EMXX_HDMI
-		/* HDMI output mode notifier register */
-		register_hdmi_notifier(&hdmi_detect_notifier);
+	/* HDMI output mode notifier register */
+	register_hdmi_notifier(&hdmi_detect_notifier);
 #endif
 
 #if defined(CONFIG_PM) || defined(CONFIG_DPM)
@@ -2112,8 +2212,9 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 static void hdmi_output_setup(struct notifier_block *this, unsigned long event, void *ptr)
 {
 	int i;
-	
+
 	for (i = 0; i < EMXX_FB_DEVICES; i++) {
+                printk_info("hdmi_output_setup - dev %d - mode %lu\n", i, event);
 		struct fb_info *info = drvdata.info[i];
 		info->var.reserved[0] = event;
 	}
@@ -2479,6 +2580,7 @@ static void timeout_update_bottom_half_do(struct work_struct *num)
 	fb_data[par->devflag].fb_image_info.update_flag = FB_UPDATE_ON;
 
 	fb_data[par->devflag].fb_image_info.output_mode = par->output_mode;
+	fb_data[par->devflag].fb_image_info.output_size = par->output_size;
 
 	/* call fb function */
 	printk_dbg((_DEBUG_FB & 0x10), "request LCD\n");

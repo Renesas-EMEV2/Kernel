@@ -287,6 +287,11 @@
 #define BCM_WLAN_RST		GPIO_P117
 #define WIFI_WAKE               GPIO_P106
 
+/* LCD related control */
+#define LCD_RESET               GPIO_P103
+#define LCD_ON                  GPIO_P99
+#define POWER_5VEN              GPIO_P150
+
 /* 3G Module */
 #define GPIO_3G_RF_DISABLE      GPIO_P12
 #define GPIO_3G_RESET           GPIO_P25

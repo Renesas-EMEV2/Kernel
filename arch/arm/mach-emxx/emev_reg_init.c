@@ -17,6 +17,12 @@ static int __init emxx_regs_init(void)
 	writel((readl(CHG_PULL14) | 0x55555000), CHG_PULL14);
 	writel((readl(CHG_PULL1) | 0x00000005), CHG_PULL1);
 	//goio-keys ---------------------------------------------
+
+        // HDMI HPD input
+        // set pin 27 to gpio mode and enable input
+        writel(readl(CHG_PINSEL_G000) | (0x1 << 27), CHG_PINSEL_G000);
+        writel((readl(CHG_PULL1) | 0x00000050), CHG_PULL1);
+
 	return 0;
 }
 

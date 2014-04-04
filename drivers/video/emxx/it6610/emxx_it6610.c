@@ -41,7 +41,7 @@ extern void HDMITX_ChangeDisplayOption(HDMI_Video_Type VideoMode, HDMI_OutputCol
 /*
  * debug functions
  */
-//#define CONFIG_EMXX_HDMI_IT6610_DEBUG 1
+#define CONFIG_EMXX_HDMI_IT6610_DEBUG 1
 
 #ifdef	CONFIG_EMXX_HDMI_IT6610_DEBUG
 
@@ -525,7 +525,7 @@ static int hdmi_i2c_probe(struct i2c_client *client,
 	printk("hdmi_i2c_probe!\n");
 #endif
 
-	HDMITX_ChangeDisplayOption(HDMI_720p50, HDMI_RGB444) ;  //HDMI_480p60  HDMI_RGB444
+	HDMITX_ChangeDisplayOption(HDMI_720p50, HDMI_RGB444);  //was 720p60 or 480p60  HDMI_RGB444
 	InitCAT6611() ;
 
 	INIT_DELAYED_WORK(&hdmi_irq_work, hdmi_irqwork_func);
@@ -1234,10 +1234,9 @@ static int hdmi_it6610_pf_probe(struct platform_device *dev)
 		goto free_class;
 	}
 
-
 	hdmi_it6610_info->open_state = 0;
 	/* default value */
-	hdmi_it6610_info->resolution = EMXX_HDMI_OUTPUT_MODE_HDMI_720P_60fps;  //ffhh EMXX_HDMI_OUTPUT_MODE_HDMI_720P_60fps
+	hdmi_it6610_info->resolution = EMXX_HDMI_OUTPUT_MODE_HDMI_720P_50fps;  
 
 	debug1("success");
 	return 0;

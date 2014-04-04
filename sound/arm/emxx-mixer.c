@@ -1,5 +1,5 @@
 /*
- *  File Name		: sound/arm/emxx-mixer.h
+ *  File Name		: sound/arm/emxx-mixer.c
  *  Function		: ALC5621 CODEC
  *  Release Version 	: Ver 1.00
  *  Release Date	: 2011/09/22
@@ -666,7 +666,7 @@ static int codec_init(void)
 	int i, j;
 	FNC_ENTRY
 
-	printk("emxx_mixer: codec_init: vol controls=%d", MIXER_INT_NUM);
+	printk("emxx_mixer: codec_init: vol controls=%d\n", MIXER_INT_NUM);
 	/* volume(integer) */
 	for (i = 0; i < MIXER_INT_NUM; i++) {
 		for (j = 0; j < (codec->vol_info[IDX(i)].count); j++) {
@@ -791,6 +791,15 @@ static int codec_power_on(void)
 	}
 
 	res = CODEC_WRITE(RT5621_JACK_DET_CTRL,0x0);	
+	if (res != 0) {
+		goto err1;
+	}
+
+	/* Mute speakers (not Headphone) in case of HDMI output */
+	if (HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		printk("emxx-mixer: muting speakers (not headphone) on HDMI mode\n");
+		res = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, RT_L_MUTE | RT_R_MUTE, RT_L_MUTE | RT_R_MUTE);
+	}
 	if (res != 0) {
 		goto err1;
 	}

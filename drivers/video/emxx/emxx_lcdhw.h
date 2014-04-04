@@ -55,6 +55,32 @@
 #define VFRONTP_720P		5
 #define VBACKP_720P		20
 
+#define HAREA_720P_95		FRONT_WIDTH_720P_95
+#define HPULSE_720P_95		40
+#define HFRONTP_720P_95	142
+#define HBACKP_720P_95	252
+#define VAREA_720P_95		FRONT_HEIGHT_720P_95
+#define VPULSE_720P_95		5
+#define VFRONTP_720P_95	25
+#define VBACKP_720P_95		40
+
+#define HAREA_720P_90		FRONT_WIDTH_720P_90
+#define HPULSE_720P_90		40
+#define HFRONTP_720P_90	174
+#define HBACKP_720P_90	284
+#define VAREA_720P_90		FRONT_HEIGHT_720P_90
+#define VPULSE_720P_90		5
+#define VFRONTP_720P_90	41
+#define VBACKP_720P_90	56
+
+#define HAREA_720P_85		FRONT_WIDTH_720P_85
+#define HPULSE_720P_85		40
+#define HFRONTP_720P_85	206
+#define HBACKP_720P_85	316
+#define VAREA_720P_85		FRONT_HEIGHT_720P_85
+#define VPULSE_720P_85		5
+#define VFRONTP_720P_85	61
+#define VBACKP_720P_85		76
 
 /********************************************************
  *  Macros                                              *
@@ -74,6 +100,7 @@ extern int direct_path;
 extern int direct_reserved;
 #endif /* CONFIG_EMXX_LCD_FRAMECACHE */
 extern enum EMXX_FB_OUTPUT_MODE lcdc_output_mode;
+extern enum EMXX_FB_OUTPUT_SIZE lcdc_output_size;
 extern int lcd_field;
 #define FIELD_NONE -1
 #define FIELD_ODD  0
@@ -97,8 +124,7 @@ extern struct imc_bytelane_param	ImcNxtBytelane;
 extern int           change_frame(void);
 extern int           init_lcdhw(void);
 extern void          exit_lcdhw(void);
-extern int           change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
-		      enum EMXX_FB_OUTPUT_MODE new_mode);
+extern int           change_output(enum EMXX_FB_OUTPUT_MODE new_mode, enum EMXX_FB_OUTPUT_SIZE new_size);
 
 
 /* ------------------ LCD module initialize function ----------------------- */

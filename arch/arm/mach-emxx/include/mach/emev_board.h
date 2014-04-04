@@ -61,11 +61,11 @@
 #define I2C_SLAVE_CAM_AF_ADDR	0x0C
 
 #if defined(CONFIG_EMXX_HDMI)
-#if defined(CONFIG_EMXX_HDMI_IT6610)
+#if defined(CONFIG_EMXX_HDMI_ADV7523)
 #define I2C_SLAVE_HDMI_NAME	"adv7523"
 #define I2C_SLAVE_HDMI_ADDR	0x39
 #endif
-#if defined(CONFIG_EMXX_HDMI_ADV7523)
+#if defined(CONFIG_EMXX_HDMI_IT6610)
 #define I2C_SLAVE_HDMI_NAME	"it6610"
 #define I2C_SLAVE_HDMI_ADDR	0x4c
 #endif

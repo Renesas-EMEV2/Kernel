@@ -162,6 +162,7 @@ struct _FB_IMAGE_INFO {
 	unsigned int  mix_buf_page;	/* mix 2D buffer frame page        */
 	unsigned int  update_flag;	/* update flag ON/Off              */
 	enum EMXX_FB_OUTPUT_MODE output_mode;
+	enum EMXX_FB_OUTPUT_SIZE output_size;
 };
 #define FB_IMAGE_INFO struct _FB_IMAGE_INFO
 

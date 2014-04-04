@@ -54,7 +54,7 @@
 /********************************************************
  *  Definitions                                         *
  *******************************************************/
-#define _DEBUG_LCDHW  0x00 /* 00008421(bit) */
+#define _DEBUG_LCDHW  0x01 /* 00008421(bit) */
 			   /* 0x01: debug function in
 			    * 0x02: debug function out
 			    * 0x04: debug IMC
@@ -461,9 +461,10 @@ const unsigned int lcdm_spi_cmd_wakeup[LCDM_SPI_CMD_WAKEUP][2] = {
        int direct_reserved = 0;
 #endif /* CONFIG_EMXX_LCD_FRAMECACHE */
        enum EMXX_FB_OUTPUT_MODE lcdc_output_mode = EMXX_FB_OUTPUT_MODE_LCD;
+       /* For HDMI mode */
+       enum EMXX_FB_OUTPUT_SIZE lcdc_output_size = EMXX_FB_OUTPUT_SIZE_95;
        int lcd_field = FIELD_NONE;
        int refresh_reserved = 0;
-
 
 static unsigned int harea	= HAREA_LCD;
 static unsigned int hpulse	= HPULSE_LCD;
@@ -473,7 +474,6 @@ static unsigned int varea	= VAREA_LCD;
 static unsigned int vpulse	= VPULSE_LCD;
 static unsigned int vfrontp	= VFRONTP_LCD;
 static unsigned int vbackp	= VBACKP_LCD;
-
 
 /********************************************************
  *  Prototype declarations of local function            *
@@ -551,11 +551,11 @@ inline void chk_errno(int errno, char **cnum)
 * RETURN   : 0 : success
 * NOTE     : none
 ******************************************************************************/
-int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
- enum EMXX_FB_OUTPUT_MODE new_mode)
+int change_output(enum EMXX_FB_OUTPUT_MODE new_mode, enum EMXX_FB_OUTPUT_SIZE new_size)
 {
 	unsigned long imc_wb_scanmode;
 
+	printk_info("change_output new_mode: %d, new_size: %d", new_mode, new_size);
 	lcd_hw_backlight_off();
 	lcd_module_hw_standby();
 	lcd_module_hw_power_off();
@@ -565,6 +565,7 @@ int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
 	refresh_reserved = 0;
 
 	lcdc_output_mode = new_mode;
+        lcdc_output_size = new_size;
 	switch (lcdc_output_mode) {
 	default:
 	case EMXX_FB_OUTPUT_MODE_LCD:
@@ -610,8 +611,10 @@ int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
-		/* HDMI */
+		/* HDMI 
 		change_pinsel_hdmi();
+                */
+		change_pinsel_wvga();
 		/* No using spi for livall
 		unreset_usi3();*/
 		break;
@@ -659,7 +662,7 @@ int change_output(enum EMXX_FB_OUTPUT_MODE old_mode,
 ******************************************************************************/
 int change_frame(void)
 {
-	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+	/* printk_dbg((_DEBUG_LCDHW & 0x01), "\n"); */
 
 #ifdef CONFIG_EMXX_LCD_FRAMECACHE
 	direct_path = 0;
@@ -683,7 +686,7 @@ int change_frame(void)
 int init_lcdhw(void)
 {
 	int iRet = 0;
-	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
+	printk_dbg((_DEBUG_LCDHW & 0x01), "<start>\n");
 
 #ifdef CONFIG_EMXX_LCD_FRAMECACHE
 	save_ckrqmode = readl(SMU_CKRQ_MODE);
@@ -735,6 +738,7 @@ int init_lcdhw(void)
 	/* BackLight on                 */
 	lcd_hw_backlight_on();
 
+	printk_dbg((_DEBUG_LCDHW & 0x01), "<end>\n");
 	return 0;
 }
 
@@ -1028,8 +1032,8 @@ void lcd_hw_int_enable(void)
 {
 	printk_dbg((_DEBUG_LCDHW & 0x01), "\n");
 
-	/*  Interuppt Enable Set */
-	writel(LCD_UNDERRUN_BIT, LCDCMmioV + LCD_INTENSET);
+	/* Interrupt Enable Set */
+	/* writel(LCD_UNDERRUN_BIT, LCDCMmioV + LCD_INTENSET); */
 	if (lcdc_output_mode == EMXX_FB_OUTPUT_MODE_HDMI_1080I)
 		writel(LCD_LCDVS_BIT | LCD_FIELD_BIT, LCDCMmioV + LCD_INTENSET);
 }
@@ -1104,10 +1108,14 @@ static inline void change_pinsel_wvga(void)
 	printk_dbg(_DEBUG_LCDHW, "CHG_PULL2 = 0x%08x\n", readl(CHG_PULL2));
 	printk_dbg(_DEBUG_LCDHW, "CHG_PULL4 = 0x%08x\n", readl(CHG_PULL4));
 	printk_dbg(_DEBUG_LCDHW, "CHG_PULL5 = 0x%08x\n", readl(CHG_PULL5));
+
+	/* LCD pin drive 4mA - for HDMI stability issue */
+	writel(0x00000000, CHG_DRIVE0);
+	writel(readl(CHG_DRIVE1) & 0xFFFFFC00, CHG_DRIVE1);
 #endif
 }
 
-
+/* Not used with the IT6610 HDMI board version */
 static inline void change_pinsel_hdmi(void)
 {
 	/********************************/
@@ -1148,7 +1156,6 @@ static inline void change_pinsel_hdmi(void)
 #endif
 }
 
-
 static inline void unreset_lcdc(void)
 {
 	/********************************/
@@ -1176,7 +1183,6 @@ static inline void unreset_lcdc(void)
 	emxx_clkctrl_on(EMXX_CLKCTRL_LCDC);
 	emxx_clkctrl_on(EMXX_CLKCTRL_LCDPCLK);
 }
-
 
 static inline void unreset_usi3(void)
 {
@@ -1226,7 +1232,8 @@ static void lcd_hw_init(void)
 	case EMXX_FB_OUTPUT_MODE_HDMI_1080I:
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
 		/* HDMI */
-		change_pinsel_hdmi();
+		/* change_pinsel_hdmi(); */
+		change_pinsel_wvga();
 		break;
 	}
 
@@ -1271,16 +1278,22 @@ static void lcd_controller_hw_init(void)
 		       LCDCMmioV + LCD_CONTROL);
 		break;
 	case EMXX_FB_OUTPUT_MODE_HDMI_720P:
+#ifdef CONFIG_MACH_EMEV
+		if ((system_rev & EMXX_REV_MASK) == EMXX_REV_ES2) {
+			/* LCD Underrun settings */
+			writel(0x202, BUS1MmioV + 0x0000);
+			writel(0xf0f, BUS1MmioV + 0x0008);
+			writel(0xa00, BUS1MmioV + 0x0038);
+			writel(0x202, BUS1MmioV + 0x0010);
+			writel(0x202, BUS1MmioV + 0x0014);
+			writel(0x202, BUS1MmioV + 0x000c);
+			writel(0x202, BUS1MmioV + 0x0018);
+			writel(0x202, BUS1MmioV + 0x0024);
+		}
+#endif	
 		/* Control for LCDC  */
-		writel(LCD_LCLK_33V_PCLK |
-		       LCD_OUT_SEL_YUV |
-		       LCD_PI_SEL_PROGRESSIVE |
-		       LCD_OFORMAT_RGB888 |
-		       LCD_CLKPOL_RISING |
-		       LCD_HPOL_NEGATIVE |
-		       LCD_VPOL_NEGATIVE |
-		       LCD_ENPOL_HIGH,
-		       LCDCMmioV + LCD_CONTROL);
+		writel(LCD_LCLK_33V_PCLK,
+			   LCDCMmioV + LCD_CONTROL);
 		break;
 	}
 
@@ -2206,7 +2219,7 @@ int imc_hw_set_update_reserve(int type, int mixdsp, int update)
 {
 	struct l01_param tmp_fb_layer;
 	int iRet;
-	printk_dbg((_DEBUG_LCDHW & 0x01), "in\n");
+	/* printk_dbg((_DEBUG_LCDHW & 0x01), "in\n"); */
 
 	/**********************
 	 * set_update_reserve

@@ -34,6 +34,9 @@ extern unsigned int  uiInverseFlag_tmp;	/* inverse mode Flag */
 /* LCDC MMIO */
 extern char         *LCDCMmioV;
 
+/* BUS1 MMIO */
+extern char	    *BUS1MmioV;
+
 /* V4L2 field */
 extern unsigned int v4l2_field;
 

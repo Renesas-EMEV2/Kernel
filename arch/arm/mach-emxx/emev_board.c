@@ -152,7 +152,7 @@ static struct platform_device dm9000_device = {
 };
 #endif
 
-//headset
+/* headset */
 #ifdef CONFIG_SWITCH_GPIO
 static struct gpio_switch_platform_data headset_switch_data = { 
         .name = "h2w",

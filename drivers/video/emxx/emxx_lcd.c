@@ -71,7 +71,7 @@
 /********************************************************
  *  Definitions                                         *
  *******************************************************/
-#define _DEBUG_LCD  0x00 /* 00008421(bit) */
+#define _DEBUG_LCD  0x01 /* 00008421(bit) */
 			 /* 0x01: debug function in
 			  * 0x02: debug function out
 			  * 0x10: debug INTERLACE TB/BT
@@ -153,7 +153,11 @@ static  unsigned int  uiAbsolutelyUpFlag;	/* absolutely update flag    */
  */
 /* LCDC MMIO */
 static  unsigned long LCDCMmio = EMXX_LCD_BASE;
-	char         *LCDCMmioV;
+char    *LCDCMmioV;
+
+/* BUS1_CPU_CONF - Setting CPU bandwidth limits */
+static  unsigned long BUS1CMmio = EMXX_BUS1_BASE;
+char    *BUS1MmioV;
 
 /* LCD device status */
 static struct emxx_lcd_dev lcd_dev;
@@ -488,6 +492,23 @@ set_nowtime(SEQ_V4L2);
 
 	v4l2_layer.bufsel      = IMC_Lx_BUFSEL_P;
 	v4l2_layer.offset      = v4l2_image_info->image_data.size;
+
+	if (v4l2_image_info->output_mode == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		if (lcdc_output_size == EMXX_FB_OUTPUT_SIZE_95) {
+			v4l2_image_info->screen_data.x += (FRONT_WIDTH_720P - FRONT_WIDTH_720P_95) / 2;
+			v4l2_image_info->screen_data.y += (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_95) / 2;
+		} else if (lcdc_output_size == EMXX_FB_OUTPUT_SIZE_90) {
+			v4l2_image_info->screen_data.x += (FRONT_WIDTH_720P - FRONT_WIDTH_720P_90) / 2;
+			v4l2_image_info->screen_data.y += (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_90) / 2;
+		} else if (lcdc_output_size == EMXX_FB_OUTPUT_SIZE_85) {
+			v4l2_image_info->screen_data.x += (FRONT_WIDTH_720P - FRONT_WIDTH_720P_85) / 2;
+			v4l2_image_info->screen_data.y += (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_85) / 2;
+		} else { /* 100% size */
+			v4l2_image_info->screen_data.x += 0;
+			v4l2_image_info->screen_data.y += 0;
+		}
+	}
+
 	/* y, x */
 	v4l2_layer.position    =
 		(v4l2_image_info->screen_data.y << IMC_Lx_POSY_SFT |
@@ -640,7 +661,7 @@ EXPORT_SYMBOL(emxx_lcd_set_v4l2_image);
 ******************************************************************************/
 int emxx_lcd_set_fb_image(FB_IMAGE_INFO *fb_image_info)
 {
-	printk_dbg((_DEBUG_LCD & 0x01), "<start>\n");
+	/* printk_dbg((_DEBUG_LCD & 0x01), "<start>\n"); */
 
 #if LCD_PERF
 if (!start_perf) {
@@ -651,7 +672,7 @@ if (!start_perf) {
 }
 set_nowtime(SEQ_FB);
 #endif /* LCD_PERF */
-	/* get data semafore */
+       /* get data semafore */
 #if 1
 	down(&lcd_dev.sem_image_data);
 #else
@@ -662,24 +683,23 @@ set_nowtime(SEQ_FB);
 #endif
 	printk_dbg((_DEBUG_LCD & 0x80), "down(A) set_fb\n");
 
-	if (lcdc_output_mode != fb_image_info->output_mode) {
+	if (lcdc_output_mode != fb_image_info->output_mode ||
+            lcdc_output_size != fb_image_info->output_size ) {
 		iMixDSPFlg_tmp = MIX_DSP_OFF;
 #ifdef CONFIG_VIDEO_EMXX
-		printk_dbg((_DEBUG_LCD & 0x02),
-		 "notify lcd output mode to v4l2: %d\n",
-		 (unsigned int)lcdc_output_mode);
-		emxx_v4l2_notify_lcd_output((unsigned int)
-		 fb_image_info->output_mode);
+		printk_dbg((_DEBUG_LCD & 0x02), "notify lcd output mode to v4l2: %d\n",
+		           (unsigned int)lcdc_output_mode);
+		emxx_v4l2_notify_lcd_output((unsigned int) fb_image_info->output_mode);
 #endif
-		change_output(lcdc_output_mode, fb_image_info->output_mode);
+		change_output(fb_image_info->output_mode, fb_image_info->output_size);
 	}
 
 	/* Set other infomation of input data from fb */
 	uiAlpha_tmp              = fb_image_info->alpha;
 	uiInverseFlag_tmp        = fb_image_info->invflg;
 	uiMixFrameBufferPage_tmp = fb_image_info->mix_buf_page;
-	printk_dbg((_DEBUG_LCD & 0x01), "MixFrameBuffer(%d)\n",
-	 uiMixFrameBufferPage_tmp);
+	/* printk_dbg((_DEBUG_LCD & 0x01), "MixFrameBuffer(%d)\n", 
+	 uiMixFrameBufferPage_tmp); */
 
 	uiMaskColorFlag_tmp      = fb_image_info->maskcolrflg;
 	uiMaskColor_tmp          = fb_image_info->maskcolr;
@@ -730,12 +750,39 @@ set_nowtime(SEQ_FB);
 	fb_layer.keycolor = uiMaskColor_tmp;
 
 	fb_layer.alpha    = uiAlpha_tmp;
+
+	/* position & size */
+	if (fb_image_info->output_mode == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		if (fb_image_info->output_size == EMXX_FB_OUTPUT_SIZE_95) {
+			fb_image_info->image_data.x = (FRONT_WIDTH_720P - FRONT_WIDTH_720P_95) / 2;
+			fb_image_info->image_data.y = (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_95) / 2;
+			fb_image_info->image_data.hsize = FRONT_WIDTH_720P_95;
+			fb_image_info->image_data.vsize = FRONT_HEIGHT_720P_95;
+		} else if (fb_image_info->output_size == EMXX_FB_OUTPUT_SIZE_90) {
+			fb_image_info->image_data.x = (FRONT_WIDTH_720P - FRONT_WIDTH_720P_90) / 2;
+			fb_image_info->image_data.y = (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_90) / 2;
+			fb_image_info->image_data.hsize = FRONT_WIDTH_720P_90;
+			fb_image_info->image_data.vsize = FRONT_HEIGHT_720P_90;
+		} else if (fb_image_info->output_size == EMXX_FB_OUTPUT_SIZE_85) {
+			fb_image_info->image_data.x = (FRONT_WIDTH_720P - FRONT_WIDTH_720P_85) / 2;
+			fb_image_info->image_data.y = (FRONT_HEIGHT_720P - FRONT_HEIGHT_720P_85) / 2;
+			fb_image_info->image_data.hsize = FRONT_WIDTH_720P_85;
+			fb_image_info->image_data.vsize = FRONT_HEIGHT_720P_85;
+		} else { /* 100% size */
+			fb_image_info->image_data.x = 0;
+			fb_image_info->image_data.y = 0;
+			fb_image_info->image_data.hsize = FRONT_WIDTH_720P;
+			fb_image_info->image_data.vsize = FRONT_HEIGHT_720P;
+		}
+	}
+
 	fb_layer.position =
 		(fb_image_info->image_data.y << IMC_Lx_POSY_SFT |
 		fb_image_info->image_data.x << IMC_Lx_POSX_SFT);  /* y, x */
 	fb_layer.size     =
 		(fb_image_info->image_data.vsize << IMC_Lx_SIZEY_SFT |
 		fb_image_info->image_data.hsize << IMC_Lx_SIZEX_SFT); /* h, w */
+
 	fb_layer.mposition = IMC_Lx_MPOSX_MIN | IMC_Lx_MPOSY_MIN;
 	fb_layer.msize     = IMC_Lx_MSIZEX_MAX | IMC_Lx_MSIZEY_MAX;
 
@@ -926,7 +973,7 @@ static void lcd_irq_handler_callback(void)
 set_nowtime(SEQ_IMC);
 #endif /* LCD_PERF */
 
-	printk_dbg((_DEBUG_LCD & 0x01), "<start>\n");
+	// printk_dbg((_DEBUG_LCD & 0x01), "<start>\n");
 
 	if (list_empty(&list_lcd_var))
 		return;
@@ -1113,7 +1160,7 @@ void lcd_callback_imc_refresh(void)
 	int find = 0;
 
 	spin_lock_irqsave(&lcd_dev.lcd_lock, flags);
-	printk_dbg((_DEBUG_LCD & 0x01), "<start>\n");
+	// printk_dbg((_DEBUG_LCD & 0x01), "<start>\n");
 
 #ifdef CONFIG_EMXX_LCD_FRAMECACHE
  #ifdef CONFIG_MACH_EMEV
@@ -1236,10 +1283,13 @@ static void lcd_probe()
 {
 	/* reserve LCDC Mmio region */
 	LCDCMmioV = (char *)IO_ADDRESS(LCDCMmio);
+	BUS1MmioV = (char *)IO_ADDRESS(BUS1CMmio);
 	printk_dbg((_DEBUG_LCD),
 	 "LCDCMmio(0x%08lx)  LCDCMmioV(0x%p)\n", LCDCMmio, LCDCMmioV);
+	printk_dbg((_DEBUG_LCD),
+	 "BUS1CMmio(0x%08lx)  BUS1MmioV(0x%p)\n", BUS1CMmio, BUS1MmioV);
 
-	/* initiarize work queue */
+	/* initialize work queue */
 	emxx_lcd_workqueue = create_singlethread_workqueue(DEV_NAME);
 	INIT_WORK(&wk_timeout_bottom_half, lcd_timeout_bottom_half_do);
 }
