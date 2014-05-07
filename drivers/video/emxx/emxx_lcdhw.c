@@ -462,7 +462,7 @@ const unsigned int lcdm_spi_cmd_wakeup[LCDM_SPI_CMD_WAKEUP][2] = {
 #endif /* CONFIG_EMXX_LCD_FRAMECACHE */
        enum EMXX_FB_OUTPUT_MODE lcdc_output_mode = EMXX_FB_OUTPUT_MODE_LCD;
        /* For HDMI mode */
-       enum EMXX_FB_OUTPUT_SIZE lcdc_output_size = EMXX_FB_OUTPUT_SIZE_95;
+       enum EMXX_FB_OUTPUT_SIZE lcdc_output_size = EMXX_FB_OUTPUT_SIZE_100;
        int lcd_field = FIELD_NONE;
        int refresh_reserved = 0;
 

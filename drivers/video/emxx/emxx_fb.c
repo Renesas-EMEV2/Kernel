@@ -93,6 +93,8 @@
 #ifdef CONFIG_EMXX_HDMI
 /* HDMI output mode notifier from emxx_it6610.c */
 #include <linux/notifier.h>
+#include <linux/switch.h>
+static struct switch_dev hdmiswitch;
 extern int register_hdmi_notifier(struct notifier_block*);
 extern int unregister_hdmi_notifier(struct notifier_block*);
 static void hdmi_output_setup(struct notifier_block *, unsigned long , void *);
@@ -2155,7 +2157,7 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 		/* output mode initialize */
 		par->output_mode = EMXX_FB_OUTPUT_MODE_LCD;
                 /* For HDMI mode */
-		par->output_size = EMXX_FB_OUTPUT_SIZE_95;
+		par->output_size = EMXX_FB_OUTPUT_SIZE_100;
 
 		/* variable initialize */
 		set_val_init(info, fb_num);
@@ -2181,6 +2183,12 @@ static int __devinit emxx_fb_probe(struct platform_device *dev)
 	dev_set_drvdata(&dev->dev, &drvdata);
 
 #ifdef CONFIG_EMXX_HDMI
+        /* Create a switch device node for HDMI at /devices/virtual/switch/hdmi */
+	hdmiswitch.name = "hdmi";
+	if (switch_dev_register(&hdmiswitch) < 0) {
+		printk_wrn("cannot register hdmi switch\n");
+		return -EFAULT;
+	}
 	/* HDMI output mode notifier register */
 	register_hdmi_notifier(&hdmi_detect_notifier);
 #endif
@@ -2217,6 +2225,7 @@ static void hdmi_output_setup(struct notifier_block *this, unsigned long event, 
                 printk_info("hdmi_output_setup - dev %d - mode %lu\n", i, event);
 		struct fb_info *info = drvdata.info[i];
 		info->var.reserved[0] = event;
+		switch_set_state(&hdmiswitch, event);
 	}
 }
 #endif
@@ -2608,6 +2617,7 @@ static int emxx_fb_remove(struct platform_device *device)
 #ifdef CONFIG_EMXX_HDMI
 	/* HDMI output mode notifier unregister */
 	unregister_hdmi_notifier(&hdmi_detect_notifier);
+	switch_dev_unregister(&hdmiswitch);
 #endif
 
 #if defined(CONFIG_PM) || defined(CONFIG_DPM)
