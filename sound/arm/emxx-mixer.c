@@ -50,6 +50,7 @@
 #endif
 
 /* #define XYP_DEBUG_DEVICE */
+/* #define AUDIO_MAKING_DEBUG */
 
 #include <mach/fbcommon.h>
 extern enum EMXX_FB_OUTPUT_MODE HDMI_OUTPUT_MODE;
@@ -64,6 +65,7 @@ extern enum EMXX_FB_OUTPUT_MODE HDMI_OUTPUT_MODE;
 
 /*** debug code by the making ->*/
 #ifdef AUDIO_MAKING_DEBUG
+#define debug 1
 #define FNC_ENTRY	\
 	if (debug == 1 || debug >= 9) {	\
 		printk(KERN_INFO "emxx_mixer: entry:%s\n", __FUNCTION__); \
@@ -795,9 +797,9 @@ static int codec_power_on(void)
 		goto err1;
 	}
 
-	/* Mute speakers (not Headphone) in case of HDMI output */
+	/* Mute internal speakers when in HDMI output mode */
 	if (HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
-		printk("emxx-mixer: muting speakers (not headphone) on HDMI mode\n");
+		printk("emxx-mixer: muting internal speakers for HDMI mode\n");
 		res = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, RT_L_MUTE | RT_R_MUTE, RT_L_MUTE | RT_R_MUTE);
 	}
 	if (res != 0) {
@@ -871,6 +873,7 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 	unsigned short int PowerDownState=0;
 	FNC_ENTRY
 
+	printk("emxx-mixer: changing codec power to state: %d\n", power_state); 
 	switch(power_state)
 	{
 		case POWER_STATE_D0: //FULL ON-----power on all power
@@ -964,7 +967,7 @@ static inline int emxx_codec_volume(int addr, struct emxx_codec_mixer *codec)
 {
 	int res = 0;
 	FNC_ENTRY
-
+        
 	if (codec->vol_info[IDX(addr)].value[0] > 0x1f)
 		codec->vol_info[IDX(addr)].value[0] = 0x1f;
 
@@ -1204,6 +1207,11 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 			default:
 				return 0;
 		}
+	}
+
+	/* Mute internal speakers when in HDMI output mode */
+	if (!Mute & HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+		RetVal = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, RT_L_MUTE|RT_R_MUTE, RT_L_MUTE|RT_R_MUTE);
 	}
 
 	return RetVal;
