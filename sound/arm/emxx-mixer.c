@@ -120,6 +120,7 @@ static struct rt5621_reg init_data[] = {
 	{RT5621_ADC_REC_GAIN,		0xFC18},			//ADC record gain: left channel: +19.5dB, right channel: +19.5dB
 	{RT5621_STEREO_DAC_VOL, 	0x6000},			//DAC->HP Mixer, DAC volume:+0dB
 	{RT5621_AUXIN_VOL,		0x6000},			//AUXIN->HP Mixer, AUXIN volume:+0dB
+	{RT5621_LINE_IN_VOL,		0x6000},			//LINEIN->HP Mixer, LINEIN volume:+0dB
 	{RT5621_MIC_ROUTING_CTRL,	0xD0D0},			//MIC1->MONO Mixer, MIC1:differential mode; MIC2->MONO Mixer, MIC2:differential mode
 	{RT5621_ADD_CTRL_REG,		0x5300},			//AUXOUT: differential mode
 	{RT5621_OUTPUT_MIXER_CTRL,	0x87C0},			//LN->SPK_OUT_N, SPK_OUT type:calss-AB, HP mixer->SPK_OUT, HP mixer->HP_OUT, MONO mixer->AUX_OUT.
@@ -143,6 +144,7 @@ enum {
 	MIXER_VOL_MIC1,
 	MIXER_VOL_MIC2,
 	MIXER_VOL_AUXIN,
+	MIXER_VOL_LINEIN,
 	MIXER_VOL_AUXOUT,
 
 	MIXER_INT_NUM = IDX(MIXER_VOL_AUXOUT) + 1,
@@ -165,7 +167,10 @@ enum {
 };
 
 static const char *in_sw_control_texts[] = {
-	"OFF", "MIC_normal", "MIC_ringtone", "MIC_incall", "Headset_normal", "Headset_ringtone", "Headset_incall"
+	"OFF", "MIC_normal", "MIC_ringtone", "MIC_incall", 
+	"Headset_normal", "Headset_ringtone", "Headset_incall",
+	"AUXIN_to_Speaker", "LINEIN_to_Speaker",
+	"AUXIN_to_Headphone", "LINEIN_to_Headphone"
 };
 
 static const char *fs_sw_control_texts[] = {
@@ -174,7 +179,9 @@ static const char *fs_sw_control_texts[] = {
 };
 
 static const char *out_sw_control_texts[] = {
-	"OFF", "Speaker_normal", "Speaker_ringtone", "Speaker_incall", "Earpiece_ringtone", "Earpiece_incall", "Headset_normal", "Headset_ringtone", "Headset_incall"
+	"OFF", "Speaker_normal", "Speaker_ringtone", "Speaker_incall", 
+	"Earpiece_ringtone", "Earpiece_incall", 
+	"Headset_normal", "Headset_ringtone", "Headset_incall"
 };
 
 struct integer_info {
@@ -236,13 +243,19 @@ static struct integer_info volume_info[MIXER_INT_NUM] = {
 		.val_int_max = 0x1f,
 		.val_int_step = 1,
 	},
-	{ /* MIXER_VOL_AUXIN*/
+	{ /* MIXER_VOL_AUXIN */
 		.count = 2,
 		.val_int_min = 0,
 		.val_int_max = 0x1f,
 		.val_int_step = 1,
 	},
-	{ /* MIXER_VOL_AUXOUT*/
+	{ /* MIXER_VOL_LINEIN */
+		.count = 2,
+		.val_int_min = 0,
+		.val_int_max = 0x1f,
+		.val_int_step = 1,
+	},
+	{ /* MIXER_VOL_AUXOUT */
 		.count = 2,
 		.val_int_min = 0,
 		.val_int_max = 0x1f,
@@ -392,6 +405,7 @@ static int i2c_codec_write(unsigned int reg, unsigned int data)
 
 	res = i2c_master_send(i2c_codec_client, buf, 3);
 	if (res > 0) {
+		d0b(KERN_INFO "emxx-mixer: i2c_send reg 0x%02x data 0x%04x\n", reg, data);
 		res = 0;
 	} else {
 		printk(KERN_ERR "emxx-mixer: i2c codec write failed!res=%d\n", res);
@@ -892,9 +906,11 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 				PWR_VREF|PWR_L_ADC_CLK_GAIN|PWR_R_ADC_CLK_GAIN|PWR_L_HP_MIXER|PWR_R_HP_MIXER|PWR_L_ADC_REC_MIXER|PWR_R_ADC_REC_MIXER
 				|PWR_PLL|PWR_CLASS_AB|PWR_CLASS_D|PWR_DAC_REF_CIR|PWR_L_DAC_CLK|PWR_R_DAC_CLK|PWR_MONO_MIXER);
 			CODEC_WRITE_M(RT5621_PWR_MANAG_ADD3,
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|
+				PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL
 				|PWR_AUXOUT_L_VOL_AMP|PWR_AUXOUT_R_VOL_AMP|PWR_MIC1_FUN_CTRL|PWR_MIC2_FUN_CTRL,
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|
+				PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL
 				|PWR_AUXOUT_L_VOL_AMP|PWR_AUXOUT_R_VOL_AMP|PWR_MIC1_FUN_CTRL|PWR_MIC2_FUN_CTRL);
 			break;
 
@@ -905,8 +921,8 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 				PWR_VREF|PWR_PLL|PWR_CLASS_AB|PWR_CLASS_D|PWR_DAC_REF_CIR|PWR_L_DAC_CLK|PWR_R_DAC_CLK|PWR_L_HP_MIXER|PWR_R_HP_MIXER,
 				PWR_VREF|PWR_PLL|PWR_CLASS_AB|PWR_CLASS_D|PWR_DAC_REF_CIR|PWR_L_DAC_CLK|PWR_R_DAC_CLK|PWR_L_HP_MIXER|PWR_R_HP_MIXER);
 			CODEC_WRITE_M(RT5621_PWR_MANAG_ADD3,
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL,
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL);		
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL,
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL);		
 			break;
 
 		case POWER_STATE_D1_RECORD: //Low on of Record
@@ -927,7 +943,7 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 				PWR_VREF|PWR_L_ADC_CLK_GAIN|PWR_R_ADC_CLK_GAIN|PWR_L_HP_MIXER|PWR_R_HP_MIXER|PWR_L_ADC_REC_MIXER|PWR_R_ADC_REC_MIXER
 				|PWR_PLL|PWR_CLASS_AB|PWR_CLASS_D|PWR_DAC_REF_CIR|PWR_L_DAC_CLK|PWR_R_DAC_CLK|PWR_MONO_MIXER);
 			CODEC_WRITE_M(RT5621_PWR_MANAG_ADD3, 0,
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL
 				|PWR_AUXOUT_L_VOL_AMP|PWR_AUXOUT_R_VOL_AMP|PWR_MIC1_FUN_CTRL|PWR_MIC2_FUN_CTRL);
 			break;
 
@@ -936,7 +952,7 @@ static int rt5621_ChangeCodecPowerStatus(int power_state)
 			CODEC_WRITE_M(RT5621_PWR_MANAG_ADD2, 0, 
 				PWR_VREF|PWR_PLL|PWR_CLASS_AB|PWR_CLASS_D|PWR_DAC_REF_CIR|PWR_L_DAC_CLK|PWR_R_DAC_CLK|PWR_L_HP_MIXER|PWR_R_HP_MIXER);
 			CODEC_WRITE_M(RT5621_PWR_MANAG_ADD3, 0, 
-				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL);		
+				PWR_MAIN_BIAS|PWR_HP_R_OUT_VOL|PWR_HP_L_OUT_VOL|PWR_SPK_OUT|PWR_AUXIN_L_VOL|PWR_AUXIN_R_VOL|PWR_LINEIN_R_VOL|PWR_LINEIN_L_VOL);		
 			break;
 
 		case POWER_STATE_D2_RECORD: //STANDBY of record
@@ -1034,6 +1050,17 @@ static inline int emxx_codec_volume(int addr, struct emxx_codec_mixer *codec)
 				return res;
 			break;
 
+		case MIXER_VOL_LINEIN:
+			/* AUXIN left volume */
+			res = CODEC_WRITE_M(RT5621_LINE_IN_VOL, VOL_L_GAIN(codec->vol_info[IDX(addr)].value[0]), VOL_L_GAIN_MASK);
+			if (res < 0)
+				return res;
+			/* AUXIN right volume */
+			res = CODEC_WRITE_M(RT5621_LINE_IN_VOL, VOL_R_GAIN(codec->vol_info[IDX(addr)].value[1]), VOL_R_GAIN_MASK);
+			if (res < 0)
+				return res;
+			break;
+
 		case MIXER_VOL_AUXOUT:
 			/* AUXOUT left volume */
 			res = CODEC_WRITE_M(RT5621_MONO_AUX_OUT_VOL, VOL_L_GAIN(codec->vol_info[IDX(addr)].value[0]), VOL_L_GAIN_MASK);
@@ -1065,12 +1092,16 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 
 	if (Mute) {
 		switch (Path) {
-		//wave in
+		// wave in
 			case RT_WAVIN_ALL_OFF:
 				RetVal = CODEC_WRITE_M(RT5621_MONO_AUX_OUT_VOL, RT_L_MUTE|RT_R_MUTE, RT_L_MUTE|RT_R_MUTE);
 				RetVal = CODEC_WRITE_M(RT5621_MIC_ROUTING_CTRL, M_MIC1_TO_MONO_MIXER|M_MIC2_TO_MONO_MIXER, M_MIC1_TO_MONO_MIXER|M_MIC2_TO_MONO_MIXER); 
 				RetVal = CODEC_WRITE_M(RT5621_ADC_REC_MIXER, RT_WAVIN_L_MONO_MIXER_MUTE|RT_WAVIN_R_MONO_MIXER_MUTE, 
 										RT_WAVIN_L_MONO_MIXER_MUTE|RT_WAVIN_R_MONO_MIXER_MUTE);
+
+				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, M_AUXIN_TO_HP_MIXER|M_AUXIN_TO_SPK_MIXER|M_AUXIN_TO_MONO_MIXER, M_AUXIN_TO_HP_MIXER|M_AUXIN_TO_SPK_MIXER|M_AUXIN_TO_MONO_MIXER); 
+				RetVal = CODEC_WRITE_M(RT5621_LINE_IN_VOL, M_LINEIN_TO_HP_MIXER|M_LINEIN_TO_SPK_MIXER|M_LINEIN_TO_MONO_MIXER, M_LINEIN_TO_HP_MIXER|M_LINEIN_TO_SPK_MIXER|M_LINEIN_TO_MONO_MIXER);
+
 				break;
 
 			case RT_WAVIN_AUXOUT://Mute AuxOut right&left channel
@@ -1100,11 +1131,24 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 			case RT_WAVIN_R_MONOMIXER_2_ADCMIXER://Mute right MONO mixer to ADC Record Mixer
 				RetVal = CODEC_WRITE_M(RT5621_ADC_REC_MIXER, RT_WAVIN_R_MONO_MIXER_MUTE, RT_WAVIN_R_MONO_MIXER_MUTE); 
 				break;
-		//wave out
+
+			case RT_WAVIN_AUX2HPMIXER:// Mute AUXIN to HP
+				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, M_AUXIN_TO_HP_MIXER, M_AUXIN_TO_HP_MIXER); 
+				break;
+			case RT_WAVIN_AUX2SPKMIXER:// Mute AUXIN to SPK Mixer
+				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, M_AUXIN_TO_SPK_MIXER, M_AUXIN_TO_SPK_MIXER); 
+				break;
+			case RT_WAVIN_LINE2HPMIXER:// Mute LINEIN to HP Mixer
+				RetVal = CODEC_WRITE_M(RT5621_LINE_IN_VOL, M_LINEIN_TO_HP_MIXER, M_LINEIN_TO_HP_MIXER);
+				break;
+			case RT_WAVIN_LINE2SPKMIXER:// Mute LINEIN to SPK Mixer
+				RetVal = CODEC_WRITE_M(RT5621_LINE_IN_VOL, M_LINEIN_TO_SPK_MIXER, M_LINEIN_TO_SPK_MIXER);
+				break;
+
+		// wave out
 			case RT_WAVOUT_ALL_OFF:
 				RetVal = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, RT_L_MUTE|RT_R_MUTE, RT_L_MUTE|RT_R_MUTE);
 				RetVal = CODEC_WRITE_M(RT5621_HP_OUT_VOL, RT_L_MUTE|RT_R_MUTE, RT_L_MUTE|RT_R_MUTE);
-				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, M_AUXIN_TO_HP_MIXER, M_AUXIN_TO_HP_MIXER); 
 				RetVal = CODEC_WRITE_M(RT5621_STEREO_DAC_VOL, RT_M_HP_MIXER, RT_M_HP_MIXER);
 				break;
 
@@ -1131,7 +1175,6 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 			case RT_WAVOUT_AUX2HPMIXER://Mute AUXIN to HP Mixer
 				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, M_AUXIN_TO_HP_MIXER, M_AUXIN_TO_HP_MIXER); 
 				break;
-
 			case RT_WAVOUT_DAC2HPMIXER://Mute DAC to HP Mixer
 				RetVal = CODEC_WRITE_M(RT5621_STEREO_DAC_VOL, RT_M_HP_MIXER, RT_M_HP_MIXER);
 				break;
@@ -1139,9 +1182,9 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 			default:
 				return 0;
 		}
-	} else {
+	} else { // Unmute
 		switch (Path) {
-		//wave in
+		// wave in
 			case RT_WAVIN_AUXOUT://unMute AuxOut right&left channel
 				RetVal = CODEC_WRITE_M(RT5621_MONO_AUX_OUT_VOL, 0, RT_L_MUTE|RT_R_MUTE); 
 				break;
@@ -1168,12 +1211,25 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 			case RT_WAVIN_R_MONOMIXER_2_ADCMIXER://unMute right MONO mixer to ADC Record Mixer
 				RetVal = CODEC_WRITE_M(RT5621_ADC_REC_MIXER, 0, RT_WAVIN_R_MONO_MIXER_MUTE); 
 				break;
-		//wave out
+
+			case RT_WAVIN_AUX2HPMIXER://unMute AUXIN to HP Mixer
+				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, 0, M_AUXIN_TO_HP_MIXER); 
+				break;
+			case RT_WAVIN_AUX2SPKMIXER://unMute AUXIN to SPK Mixer
+				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, 0, M_AUXIN_TO_SPK_MIXER); 
+				break;
+			case RT_WAVIN_LINE2HPMIXER://unMute LINEIN to HP Mixer
+				RetVal = CODEC_WRITE_M(RT5621_LINE_IN_VOL, 0, M_LINEIN_TO_HP_MIXER); 
+				break;
+			case RT_WAVIN_LINE2SPKMIXER://unMute LINEIN to SPK Mixer
+				RetVal = CODEC_WRITE_M(RT5621_LINE_IN_VOL, 0, M_LINEIN_TO_SPK_MIXER); 
+				break;
+
+		// wave out
 			case RT_WAVOUT_ALL_ON:
 				RetVal = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, 0, RT_L_MUTE|RT_R_MUTE);
 				RetVal = CODEC_WRITE_M(RT5621_HP_OUT_VOL, 0, RT_L_MUTE|RT_R_MUTE);
 				RetVal = CODEC_WRITE_M(RT5621_STEREO_DAC_VOL, 0, RT_M_HP_MIXER);
-				RetVal = CODEC_WRITE_M(RT5621_AUXIN_VOL, 0, M_AUXIN_TO_HP_MIXER); 
 				break;
 
 			case RT_WAVOUT_HP://UnMute headphone right&left channel
@@ -1210,7 +1266,7 @@ static int rt5621_AudioMute(unsigned short int Path, bool Mute)
 	}
 
 	/* Mute internal speakers when in HDMI output mode */
-	if (!Mute & HDMI_OUTPUT_MODE == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
+	if (!(Mute & HDMI_OUTPUT_MODE) == EMXX_FB_OUTPUT_MODE_HDMI_720P) {
 		RetVal = CODEC_WRITE_M(RT5621_SPK_OUT_VOL, RT_L_MUTE|RT_R_MUTE, RT_L_MUTE|RT_R_MUTE);
 	}
 
@@ -1270,6 +1326,31 @@ static int emxx_codec_capture_sw(int *val)
 			rt5621_AudioMute(RT_WAVIN_AUXOUT, false); //unmute AUXOUT
 #endif
 			break;
+
+		case 7://Open AUXIN to Speaker
+#ifdef REALTEK_CODEC
+			rt5621_AudioMute(RT_WAVIN_AUX2SPKMIXER, false); //unmute AUXIN to SPK mixer
+#endif
+			break;
+
+		case 8://Open LINEIN to Speaker
+#ifdef REALTEK_CODEC
+			rt5621_AudioMute(RT_WAVIN_LINE2SPKMIXER, false); //unmute LINEIN to SPK mixer
+#endif
+			break;
+
+		case 9://Open AUXIN to Headphone
+#ifdef REALTEK_CODEC
+			rt5621_AudioMute(RT_WAVIN_AUX2HPMIXER, false); //unmute AUXIN to HP mixer
+#endif
+			break;
+
+		case 10://Open LINEIN to Headphone
+#ifdef REALTEK_CODEC
+			rt5621_AudioMute(RT_WAVIN_LINE2HPMIXER, false); //unmute LINEIN to HP mixer
+#endif
+			break;
+
 		default:
 			break;
 	}
@@ -1377,6 +1458,7 @@ static int emxx_codec_mixer_write(int addr, struct emxx_codec_mixer *codec)
 		case MIXER_VOL_MIC1:
 		case MIXER_VOL_MIC2:
 		case MIXER_VOL_AUXIN:
+		case MIXER_VOL_LINEIN:
 		case MIXER_VOL_AUXOUT:
 			res = emxx_codec_volume(addr, codec);
 			break;
@@ -1706,6 +1788,7 @@ static struct snd_kcontrol_new emxx_codec_controls[] = {
 	EMXX_CODEC_INTEGER("MIC1 Volume", 0, MIXER_VOL_MIC1),
 	EMXX_CODEC_INTEGER("MIC2 Volume", 0, MIXER_VOL_MIC2),
 	EMXX_CODEC_INTEGER("AUXIN Volume", 0, MIXER_VOL_AUXIN),
+	EMXX_CODEC_INTEGER("LINEIN Volume", 0, MIXER_VOL_LINEIN),
 	EMXX_CODEC_INTEGER("AUXOUT Volume", 0, MIXER_VOL_AUXOUT),
 	EMXX_CODEC_ENUM("Capture Switch", 0, MIXER_SW_CAPTURE),
 	EMXX_CODEC_ENUM("Sampling Rate Switch", 0, MIXER_SW_SAMPLING_RATE),
